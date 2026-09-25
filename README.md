@@ -65,6 +65,14 @@ Clone it and you can reproduce the entire asset set byte for byte.
 - Seed-driven and fully reproducible; the realm id is mixed into the seed, so one trial
   seed still yields five genuinely different layouts
 - Minimap on `Tab` marking discovered generators, hooks, gates and the hatch
+
+![A generated realm](docs/realms/macmillan.png)
+
+*A generated realm. Dark = walls, yellow = generators, red = hooks, white = windows, blue = pallets, green = exit gates.*
+
+![A generated realm](docs/realms/macmillan.png)
+
+*A generated realm. Dark = walls, yellow = generators, red = hooks, white = windows, blue = pallets, green = exit gates.*
 - Ships a **map inspection tool**: `--dump-map` renders a realm to PNG and prints a
   readability report (openness, reachability, corridor ratio, generator spacing, hook
   coverage). This is how the layout was measured rather than guessed at.
@@ -81,6 +89,14 @@ Clone it and you can reproduce the entire asset set byte for byte.
   losing the target reset it (with a 16 m grace window)
 
 ### Systems
+
+### In game
+
+![Gameplay](docs/screenshot.png)
+
+### In game
+
+![Gameplay](docs/screenshot.png)
 
 ### Bloodweb progression
 - Every character owns a private ring of nodes: perks, items, add-ons and bloodpoint caches
