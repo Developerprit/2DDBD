@@ -34,7 +34,7 @@ Clone it and you can reproduce the entire asset set byte for byte.
 - Three hook stages: a 4% self-unhook gamble, then the struggle phase, then sacrifice
 - Running leaves **scratch marks**, bleeding leaves **blood**, crouching makes you harder to spot
 - 4 items (med-kit / flashlight / toolbox / map) with 3 add-ons each
-- 12 survivor perks
+- 12 survivor perks, unlocked through the Bloodweb
 
 ### Killer — The Trapper
 - Basic attack with wind-up and recovery, plus a charged lunge
@@ -43,13 +43,20 @@ Clone it and you can reproduce the entire asset set byte for byte.
 - Break dropped pallets, vault windows (much slower than survivors — which is exactly why window loops work)
 - **Bloodlust**: chasing the same target for 15 / 25 / 35 s grants three speed tiers, reset by a pallet stun or by losing the target
 - **Terror radius**: a 32 m heartbeat that gets faster and louder as he closes in
-- 6 killer perks + 6 bear-trap add-ons
+- 6 killer perks + 6 bear-trap add-ons, unlocked through the Bloodweb
 
 ### Realms
 - 5 maps: Auto Haven Wreckers / MacMillan Estate / Coldwind Farm / Yamaoka Estate / Ormond Lake Mine
 - Seed-driven procedural generation: landmarks, obstacle clusters, pallet-window loops, objective placement and spawns are all reproducible
 - Walls block movement **and line of sight** (light occluders baked into the TileSet), which is what makes the chases feel claustrophobic
 - Minimap on `Tab` marking discovered generators, hooks, gates and the hatch
+
+### Bloodweb progression
+- Every character owns a private ring of nodes: perks, items, add-ons and bloodpoint caches
+- Higher tiers are wider and more expensive; taking 60% of a tier unlocks the next one
+- The graph is generated deterministically from `(character, tier)`, so a save only
+  stores the tier number and the node ids taken -- tiny, and identical on every machine
+- Anything you unlock appears in the Loadout screen immediately; the rest stays locked
 
 ### Systems
 - Finite state machines drive every behaviour (11 survivor states / 8 killer states)
@@ -73,6 +80,7 @@ Clone it and you can reproduce the entire asset set byte for byte.
 | Left click / `J` | — | Swing |
 | Right click / `K` | — | Place / reclaim bear trap |
 | `Tab` | Minimap | Minimap |
+| `F11` | Toggle borderless fullscreen | Same |
 | `Esc` | Pause menu | Pause menu |
 
 ---
@@ -179,6 +187,8 @@ direct data channel, no signalling server involved).
 - The AI completes the whole loop (repair, flee, rescue, heal, chase, hook) but its pallet-window
   mind games are still fairly basic.
 - Text uses Godot's built-in font; a pixel bitmap font is on the roadmap.
+- Bloodweb costs and tier widths are pure functions, so the economy can be
+  rebalanced later without invalidating anybody's save.
 
 ---
 

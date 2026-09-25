@@ -174,6 +174,22 @@ func _read_input() -> void:
 		use_item()
 
 
+## Hands a vault over to the dedicated movement state.
+func _begin_vault(target: Node, end_pos: Vector2, duration: float) -> void:
+	if target == null or not is_instance_valid(target):
+		return
+	# An overshoot can land inside a wall, so pull the destination back onto a
+	# walkable tile before committing to it.
+	var mc := MatchController.instance
+	if mc != null:
+		var cell := mc.nearest_open_cell(Utils.tile_of(end_pos))
+		if cell.x >= 0 and Utils.tile_center(cell).distance_to(end_pos) <= GameConfig.TILE * 3.0:
+			end_pos = Utils.tile_center(cell)
+	end_interaction()
+	if machine.has_state("vault"):
+		machine.force("vault", {"target": target, "end": end_pos, "time": duration})
+
+
 func _on_action_pressed() -> void:
 	# Skill check has priority over everything else.
 	if skill.active:
@@ -235,6 +251,25 @@ func _try_start_interaction() -> void:
 	var it := interact_target
 	if not it.can_interact(self):
 		return
+
+	# Vaulting is a movement action, not a hold-to-progress interaction. If we
+	# let it fall through to the generic pipeline it plays the sound, resolves
+	# instantly and moves nobody -- which is exactly the "cannot vault" bug.
+	if it is WindowVault:
+		_begin_vault(it, (it as WindowVault).landing_point(global_position),
+				(it as WindowVault).vault_time(self))
+		return
+	if it is Pallet:
+		var p := it as Pallet
+		if p.state == Pallet.State.STANDING:
+			# Slamming the pallet down is instant; the survivor stays put.
+			p.drop()
+			return
+		if p.state == Pallet.State.DROPPED:
+			_begin_vault(p, p.landing_point(global_position), p.vault_time(self))
+			return
+		return
+
 	machine.change("interact", {"target": it})
 
 
@@ -864,27 +899,39 @@ class VaultState:
 	func enter(msg: Dictionary = {}) -> void:
 		var s := actor as Survivor
 		_target = msg.get("target", null)
-		_total = float(msg.get("time", 0.5))
+		_total = maxf(0.08, float(msg.get("time", 0.5)))
 		_timer = 0.0
 		_start_pos = s.global_position
 		_end_pos = msg.get("end", s.global_position)
 		s.move_input = Vector2.ZERO
 		s.velocity = Vector2.ZERO
+		if _end_pos.distance_to(_start_pos) > 1.0:
+			s.set_facing_from(_end_pos - _start_pos)
 		s.play_anim("vault_%s" % Utils.facing_suffix(s.facing), true)
 		s.lock_facing(true)
+		s.interact_target = null
+		if _target != null and is_instance_valid(_target) and _target.has_method("on_interact_start"):
+			_target.on_interact_start(s)
 
 	func exit() -> void:
 		var s := actor as Survivor
 		s.lock_facing(false)
 
+	func physics(_delta: float) -> void:
+		# Driven entirely by update(); applying movement here would fight the
+		# interpolation and shove the survivor back into the obstacle.
+		pass
+
 	func update(delta: float) -> void:
 		var s := actor as Survivor
 		_timer += delta
-		var t := clampf(_timer / maxf(0.01, _total), 0.0, 1.0)
+		var t := clampf(_timer / _total, 0.0, 1.0)
 		s.global_position = _start_pos.lerp(_end_pos, ease(t, 0.4))
 		if t >= 1.0:
+			if _target is WindowVault and s.has_method("notify_vaulted"):
+				s.notify_vaulted(_target as WindowVault)
 			if _target is Pallet and s.has_method("notify_vaulted"):
-				pass
+				s.notify_vaulted(null)
 			machine.change("move")
 
 

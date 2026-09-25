@@ -3,7 +3,7 @@ extends CanvasLayer
 ## all in one screen that swaps between Panels. Singletons keep the state
 ## (GameConfig / SaveData) so nothing is lost on switching tabs.
 
-enum Page { MAIN, LOADOUT, SETTINGS, MULTIPLAYER, TUTORIAL, CREDITS }
+enum Page { MAIN, LOADOUT, SETTINGS, MULTIPLAYER, TUTORIAL, CREDITS, BLOODWEB }
 
 var root: Control
 var bg: Control
@@ -96,6 +96,7 @@ func _build() -> void:
 	left.add_child(nav_box)
 	_add_nav_button(Locale.t("menu.play"), func() -> void: _start_match())
 	_add_nav_button(Locale.t("menu.loadout"), func() -> void: _show_page(Page.LOADOUT))
+	_add_nav_button(Locale.t("menu.bloodweb"), func() -> void: _show_page(Page.BLOODWEB))
 	_add_nav_button(Locale.t("menu.multiplayer"), func() -> void: _show_page(Page.MULTIPLAYER))
 	_add_nav_button(Locale.t("menu.settings"), func() -> void: _show_page(Page.SETTINGS))
 	_add_nav_button(Locale.t("menu.tutorial"), func() -> void: _show_page(Page.TUTORIAL))
@@ -114,6 +115,7 @@ func _build() -> void:
 	_build_multiplayer_page()
 	_build_tutorial_page()
 	_build_credits_page()
+	_build_bloodweb_page()
 
 
 func _spacer(h: int) -> Control:
@@ -149,9 +151,23 @@ func _panel(title: String) -> VBoxContainer:
 	sb.content_margin_bottom = 12
 	p.add_theme_stylebox_override("panel", sb)
 	page_root.add_child(p)
+
+	# Every page scrolls. Without this the loadout / settings / tutorial content
+	# runs past the bottom of a normal-sized window and the lower buttons become
+	# unreachable -- the panel clips them and there is no way to reach them.
+	# Horizontal scrolling stays off because the rows below wrap instead.
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	p.add_child(scroll)
+
 	var v := VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_theme_constant_override("separation", 8)
-	p.add_child(v)
+	scroll.add_child(v)
+
 	var h := UITheme.heading(title, 16)
 	h.add_theme_color_override("font_color", Color(str(UITheme.palette()["gold"])))
 	v.add_child(h)
@@ -166,6 +182,8 @@ func _show_page(p: int) -> void:
 		page_root.get_child(p).visible = true
 	if p == Page.LOADOUT:
 		_refresh_loadout()
+	if p == Page.BLOODWEB:
+		_refresh_bloodweb()
 	if p == Page.MULTIPLAYER:
 		_refresh_mp_status()
 
@@ -210,8 +228,9 @@ var _main_page: VBoxContainer
 func _build_main_page() -> void:
 	_main_page = _panel(Locale.t("menu.play"))
 
-	var role_row := HBoxContainer.new()
-	role_row.add_theme_constant_override("separation", 8)
+	var role_row := HFlowContainer.new()
+	role_row.add_theme_constant_override("h_separation", 8)
+	role_row.add_theme_constant_override("v_separation", 6)
 	_main_page.add_child(role_row)
 
 	var surv_btn := Button.new()
@@ -284,51 +303,50 @@ func _start_match() -> void:
 # Loadout page
 # ---------------------------------------------------------------------------
 var _loadout_page: VBoxContainer
-var _char_row: HBoxContainer
-var _perk_row: HBoxContainer
-var _item_row: HBoxContainer
-var _map_row: HBoxContainer
+var _char_row: HFlowContainer
+var _perk_row: HFlowContainer
+var _item_row: HFlowContainer
+var _map_row: HFlowContainer
 
 
 func _build_loadout_page() -> void:
 	_loadout_page = _panel(Locale.t("menu.loadout"))
-
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_loadout_page.add_child(scroll)
-
-	var v := VBoxContainer.new()
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var v := _loadout_page
 	v.add_theme_constant_override("separation", 10)
-	scroll.add_child(v)
 
 	v.add_child(UITheme.dim(Locale.t("loadout.character"), 10))
-	_char_row = HBoxContainer.new()
-	_char_row.add_theme_constant_override("separation", 6)
+	# HFlowContainer wraps onto the next line instead of pushing buttons past the
+	# right edge -- 12 perks at 112 px each made a plain HBox roughly 1400 px wide.
+	_char_row = HFlowContainer.new()
+	_char_row.add_theme_constant_override("h_separation", 6)
+	_char_row.add_theme_constant_override("v_separation", 6)
 	v.add_child(_char_row)
 
 	v.add_child(UITheme.dim(Locale.t("loadout.perks") + " · " + Locale.t("loadout.locked_hint"), 10))
-	_perk_row = HBoxContainer.new()
-	_perk_row.add_theme_constant_override("separation", 6)
+	_perk_row = HFlowContainer.new()
+	_perk_row.add_theme_constant_override("h_separation", 6)
+	_perk_row.add_theme_constant_override("v_separation", 6)
 	v.add_child(_perk_row)
 
 	var item_label := UITheme.dim(Locale.t("loadout.item") + " / " + Locale.t("loadout.power"), 10)
 	item_label.name = "ItemLabel"
 	v.add_child(item_label)
-	_item_row = HBoxContainer.new()
-	_item_row.add_theme_constant_override("separation", 6)
+	_item_row = HFlowContainer.new()
+	_item_row.add_theme_constant_override("h_separation", 6)
+	_item_row.add_theme_constant_override("v_separation", 6)
 	v.add_child(_item_row)
 
 	v.add_child(UITheme.dim(Locale.t("loadout.addons"), 10))
-	var addon_row := HBoxContainer.new()
+	var addon_row := HFlowContainer.new()
 	addon_row.name = "AddonRow"
-	addon_row.add_theme_constant_override("separation", 6)
+	addon_row.add_theme_constant_override("h_separation", 6)
+	addon_row.add_theme_constant_override("v_separation", 6)
 	v.add_child(addon_row)
 
 	v.add_child(UITheme.dim(Locale.t("loadout.map"), 10))
-	_map_row = HBoxContainer.new()
-	_map_row.add_theme_constant_override("separation", 6)
+	_map_row = HFlowContainer.new()
+	_map_row.add_theme_constant_override("h_separation", 6)
+	_map_row.add_theme_constant_override("v_separation", 6)
 	v.add_child(_map_row)
 
 	loadout_info = RichTextLabel.new()
@@ -339,6 +357,14 @@ func _build_loadout_page() -> void:
 
 
 func _refresh_loadout() -> void:
+	# Guard against a save that equipped something the player does not own (for
+	# example after a character switch).
+	var owner_id: String = GameConfig.selected_killer \
+			if GameConfig.player_role == Enums.Team.KILLER else GameConfig.selected_survivor
+	var owned := SaveData.unlocked_perk_ids(owner_id)
+	var slots: Array = GameConfig.killer_perks \
+			if GameConfig.player_role == Enums.Team.KILLER else GameConfig.survivor_perks
+	slots.assign(slots.filter(func(pid: String) -> bool: return owned.has(pid)))
 	_rebuild_char_row()
 	_rebuild_perk_row()
 	_rebuild_item_row()
@@ -397,16 +423,27 @@ func _rebuild_perk_row() -> void:
 	_clear(_perk_row)
 	var side := "survivor" if GameConfig.player_role == Enums.Team.SURVIVOR else "killer"
 	var selected: Array = GameConfig.survivor_perks if side == "survivor" else GameConfig.killer_perks
+	var owner_id: String = GameConfig.selected_killer if side == "killer" \
+			else GameConfig.selected_survivor
+	var owned := SaveData.unlocked_perk_ids(owner_id)
+
 	for pid in GameConfig.perks.keys():
 		var perk: Dictionary = GameConfig.perks[pid]
 		if str(perk.get("side", "")) != side:
 			continue
+		# Perks are progression now: anything not granted by the Bloodweb (or a
+		# character's signature) stays locked and unselectable.
+		var unlocked: bool = owned.has(pid)
 		var b := Button.new()
 		var nm: Dictionary = perk.get("name", {})
 		b.text = str(nm.get(Locale.current, nm.get("en", pid)))
 		b.custom_minimum_size = Vector2(112, 26)
 		b.add_theme_font_size_override("font_size", 10)
-		b.tooltip_text = str(perk.get("desc", {}).get(Locale.current, ""))
+		b.tooltip_text = str(perk.get("desc", {}).get(Locale.current, "")) if unlocked \
+				else Locale.t("bloodweb.title") + " — " + str(nm.get(Locale.current, pid))
+		b.disabled = not unlocked
+		if not unlocked and selected.has(pid):
+			selected.erase(pid)
 		var on := selected.has(pid)
 		var p := UITheme.palette()
 		var sb := StyleBoxFlat.new()
@@ -450,7 +487,7 @@ func _rebuild_item_row() -> void:
 
 
 func _rebuild_addon_row() -> void:
-	var row := _loadout_page.find_child("AddonRow", true, false) as HBoxContainer
+	var row := _loadout_page.find_child("AddonRow", true, false) as HFlowContainer
 	if row == null:
 		return
 	_clear(row)
@@ -749,8 +786,9 @@ func _build_multiplayer_page() -> void:
 	ip_row.add_child(port_edit)
 	lan.add_child(ip_row)
 
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 8)
+	var btn_row := HFlowContainer.new()
+	btn_row.add_theme_constant_override("h_separation", 8)
+	btn_row.add_theme_constant_override("v_separation", 6)
 	var host_btn := Button.new()
 	host_btn.text = Locale.t("mp.host")
 	host_btn.custom_minimum_size = Vector2(120, 26)
@@ -791,8 +829,9 @@ func _build_multiplayer_page() -> void:
 	offer_text.placeholder_text = Locale.t("mp.signal_local")
 	p2p.add_child(offer_text)
 
-	var p2p_btns := HBoxContainer.new()
-	p2p_btns.add_theme_constant_override("separation", 6)
+	var p2p_btns := HFlowContainer.new()
+	p2p_btns.add_theme_constant_override("h_separation", 6)
+	p2p_btns.add_theme_constant_override("v_separation", 6)
 
 	var gen_btn := Button.new()
 	gen_btn.text = Locale.t("mp.signal_generate")
@@ -950,6 +989,77 @@ func _tutorial_text() -> String:
 			"A dropped pallet blocks you: stand still and hold Space to break it (2.6 s).\n" + \
 			"You vault windows slowly (1.5 s), which is exactly why survivors loop them." + end + "\n\n" + \
 			gold + "KEYS" + end + "\n" + dim + "Tab minimap · Esc pause" + end
+
+
+# ---------------------------------------------------------------------------
+# Bloodweb page
+# ---------------------------------------------------------------------------
+var _bloodweb_page: VBoxContainer
+var _bloodweb_view: BloodwebView
+var _web_row: HFlowContainer
+
+
+func _build_bloodweb_page() -> void:
+	_bloodweb_page = _panel(Locale.t("menu.bloodweb"))
+
+	var hint := UITheme.dim(Locale.t("bloodweb.hint"), 10)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(360, 0)
+	_bloodweb_page.add_child(hint)
+
+	# Character picker. Rebuilt on every visit because it depends on the
+	# currently selected side (survivor roster vs killer roster).
+	_web_row = HFlowContainer.new()
+	_web_row.name = "WebCharRow"
+	_web_row.add_theme_constant_override("h_separation", 6)
+	_web_row.add_theme_constant_override("v_separation", 6)
+	_bloodweb_page.add_child(_web_row)
+
+	_bloodweb_view = BloodwebView.new()
+	_bloodweb_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_bloodweb_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Claiming a perk must immediately show up in the loadout screen.
+	_bloodweb_view.changed.connect(_refresh_loadout)
+	_bloodweb_page.add_child(_bloodweb_view)
+
+
+func _refresh_bloodweb() -> void:
+	if _bloodweb_view == null:
+		return
+	var killer_side := GameConfig.player_role == Enums.Team.KILLER
+	for c in _web_row.get_children():
+		_web_row.remove_child(c)
+		c.queue_free()
+
+	var roster: Dictionary = GameConfig.killers if killer_side else GameConfig.survivors
+	for cid in roster.keys():
+		var cfg: Dictionary = roster[cid]
+		var b := Button.new()
+		b.text = Locale.t(str(cfg.get("name_key", cid)))
+		b.custom_minimum_size = Vector2(100, 24)
+		b.add_theme_font_size_override("font_size", 10)
+		var picked: bool = cid == (GameConfig.selected_killer if killer_side
+				else GameConfig.selected_survivor)
+		var p := UITheme.palette()
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(str(p["accent_soft"])) if picked else Color(str(p["panel_alt"]))
+		sb.border_color = Color(str(p["gold"])) if picked else Color(str(p["line"]))
+		sb.set_border_width_all(1)
+		sb.content_margin_left = 4
+		sb.content_margin_right = 4
+		b.add_theme_stylebox_override("normal", sb)
+		b.add_theme_stylebox_override("hover", sb)
+		b.pressed.connect(func() -> void:
+			AudioDirector.play("ui_click", -10.0)
+			if killer_side:
+				GameConfig.selected_killer = cid
+			else:
+				GameConfig.selected_survivor = cid
+			_refresh_bloodweb())
+		_web_row.add_child(b)
+
+	var current: String = GameConfig.selected_killer if killer_side else GameConfig.selected_survivor
+	_bloodweb_view.open(current, killer_side)
 
 
 func _build_credits_page() -> void:

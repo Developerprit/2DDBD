@@ -245,6 +245,11 @@ func _killer() -> Node:
 
 var _revive_progress := 0.0
 
+## Debug counters. Vaulting is invisible in a headless soak test unless it is
+## counted, and "cannot vault" was the reported bug.
+static var probe_hits := 0
+static var vault_attempts := 0
+
 
 func _find_downed_teammate() -> Survivor:
 	var best: Survivor = null
@@ -347,7 +352,10 @@ func _follow_path(delta: float) -> void:
 
 	if path.is_empty():
 		# No path: fall back to steering straight at the goal.
-		s.move_input = (goal - s.global_position).normalized()
+		var aim := (goal - s.global_position).normalized()
+		if s.machine.current_name == "move" and _try_vault_ahead(aim):
+			return
+		s.move_input = aim
 		return
 
 	while path_index < path.size() and \
@@ -363,6 +371,10 @@ func _follow_path(delta: float) -> void:
 
 	var next: Vector2 = path[path_index]
 	var dir := (next - s.global_position).normalized()
+
+	# If the next step is straight into a vaultable obstacle, vault it.
+	if s.machine.current_name == "move" and _try_vault_ahead(dir):
+		return
 	# A little separation so a pack of bots does not stack.
 	var sep := Vector2.ZERO
 	for n in s.get_tree().get_nodes_in_group("survivor"):
@@ -383,6 +395,54 @@ func _follow_path(delta: float) -> void:
 		s.gait = Enums.Gait.RUN
 	if goal_kind == "flee":
 		s.gait = Enums.Gait.RUN
+
+
+## Vaults a window or dropped pallet that is directly between the survivor and
+## where they are heading.
+##
+## The first version probed a point 1.1 tiles ahead and asked whether an obstacle
+## happened to sit near it. That almost never fired for two reasons: the path
+## already steers around the window, so the probe never lands on it, and the
+## "is it closer to the goal" test rejected anything that would first take us
+## sideways. Measuring the real distance to the obstacle and requiring only that
+## it lies in the direction of travel fixes both.
+func _try_vault_ahead(dir: Vector2) -> bool:
+	if dir.length() < 0.05:
+		return false
+	for n in s.get_tree().get_nodes_in_group("interactable"):
+		var it := n as Interactable
+		if it == null or not is_instance_valid(it):
+			continue
+
+		var end := Vector2.ZERO
+		var dur := 0.0
+		if it is WindowVault:
+			end = (it as WindowVault).landing_point(s.global_position)
+			dur = (it as WindowVault).vault_time(s)
+		elif it is Pallet and (it as Pallet).state == Pallet.State.DROPPED:
+			end = (it as Pallet).landing_point(s.global_position)
+			dur = (it as Pallet).vault_time(s)
+		else:
+			continue
+
+		var to_obstacle := it.global_position - s.global_position
+		var dist := to_obstacle.length()
+		if dist > GameConfig.TILE * 1.7 or dist < 1.0:
+			continue
+		# It must lie roughly where we are already going.
+		if to_obstacle.normalized().dot(dir) < 0.25:
+			continue
+		# And it must actually gain us ground -- unless we are fleeing, in which
+		# case anything between us and the killer is worth taking.
+		if goal_kind != "flee" and end.distance_to(goal) > \
+				s.global_position.distance_to(goal) + GameConfig.TILE:
+			continue
+
+		probe_hits += 1
+		vault_attempts += 1
+		s._begin_vault(it, end, dur)
+		return true
+	return false
 
 
 func _camera() -> Camera2D:

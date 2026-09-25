@@ -137,6 +137,7 @@ var ui_theme: String = "dark"
 var show_fps: bool = false
 var pixel_snap: bool = true
 var screen_shake: bool = true
+var fullscreen: bool = false      ## borderless fullscreen (F11)
 
 ## Currently selected loadout, filled by the Loadout screen.
 var selected_killer: String = "trapper"
@@ -198,6 +199,7 @@ func apply_save(data: Dictionary) -> void:
 	show_fps = bool(data.get("show_fps", show_fps))
 	pixel_snap = bool(data.get("pixel_snap", pixel_snap))
 	screen_shake = bool(data.get("screen_shake", screen_shake))
+	fullscreen = bool(data.get("fullscreen", fullscreen))
 	bot_difficulty = float(data.get("bot_difficulty", bot_difficulty))
 
 
@@ -211,6 +213,7 @@ func to_save() -> Dictionary:
 		"show_fps": show_fps,
 		"pixel_snap": pixel_snap,
 		"screen_shake": screen_shake,
+		"fullscreen": fullscreen,
 		"bot_difficulty": bot_difficulty,
 	}
 

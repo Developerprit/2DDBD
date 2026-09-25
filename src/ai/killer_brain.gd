@@ -279,6 +279,17 @@ func _follow(delta: float) -> void:
 
 	var next: Vector2 = path[path_index]
 	var dir := (next - k.global_position).normalized()
+
+	# Vault a window if the path goes through one. It costs the killer 1.5 s,
+	# which is exactly the trade-off survivors exploit when they loop a window.
+	var w := k._nearest_vaultable_window()
+	if w != null and w.global_position.distance_to(k.global_position + dir * GameConfig.TILE * 0.9) \
+			<= GameConfig.TILE * 0.9:
+		if k.machine.has_state("vault"):
+			k.machine.force("vault", {"target": w, "time": w.vault_time(k),
+					"end": w.landing_point(k.global_position)})
+		return
+
 	k.move_input = dir
 	k.gait = Enums.Gait.RUN
 

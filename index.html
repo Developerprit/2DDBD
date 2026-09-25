@@ -532,6 +532,21 @@ footer .meta a:hover { color: var(--ink); border-color: var(--blood); }
         <li data-en="Med-kit / flashlight / toolbox / map, 3 add-ons each" data-zh="医疗包 / 手电筒 / 工具箱 / 地图，各 3 个配件">医疗包 / 手电筒 / 工具箱 / 地图，各 3 个配件</li>
       </ul>
     </div>
+    <div class="cell w12">
+      <h4 data-en="Bloodweb progression" data-zh="血网成长系统">血网成长系统</h4>
+      <p data-en="The progression layer from the original: every character owns a private ring of nodes, and bloodpoints buy them one at a time."
+         data-zh="原作的成长层：每个角色拥有一份独立的环状节点图，用血网点逐个解锁。">原作的成长层：每个角色拥有一份独立的环状节点图，用血网点逐个解锁。</p>
+      <ul>
+        <li data-en="Perks, items, add-ons and bloodpoint caches, on one ring"
+            data-zh="技能、道具、配件与血点奖励，都在同一环上">技能、道具、配件与血点奖励，都在同一环上</li>
+        <li data-en="Later tiers are wider and costlier; 60% clears a tier"
+            data-zh="层级越高环路越宽、消耗越高；解锁满 60% 即可晋升">层级越高环路越宽、消耗越高；解锁满 60% 即可晋升</li>
+        <li data-en="Generated deterministically from (character, tier) — a save only stores the tier and the ids taken"
+            data-zh="由 (角色, 层级) 确定性生成 —— 存档只记录层级与已取节点，体积极小">由 (角色, 层级) 确定性生成 —— 存档只记录层级与已取节点，体积极小</li>
+        <li data-en="Unlocked perks appear in the Loadout screen immediately; the rest stay locked"
+            data-zh="解锁的技能立刻出现在配装页面，其余保持锁定状态">解锁的技能立刻出现在配装页面，其余保持锁定状态</li>
+      </ul>
+    </div>
     <div class="cell w6">
       <h4 data-en="Feel and feedback" data-zh="手感与反馈">手感与反馈</h4>
       <p data-en="The tension is carried by light, sound and camera, not by a number on screen." data-zh="紧张感由光线、声音与镜头承载，而不是屏幕上的一串数字。">紧张感由光线、声音与镜头承载，而不是屏幕上的一串数字。</p>
@@ -698,9 +713,11 @@ footer .meta a:hover { color: var(--ink); border-color: var(--blood); }
   <div class="term rise" style="margin-top:var(--gut)">
     <div class="head"><i></i><i></i><i></i><span data-en="Controls" data-zh="操作">操作</span></div>
 <pre><span class="y">SURVIVOR</span>   WASD move · Shift walk · Ctrl crouch · Space interact &amp; skill check
-           F use item · Tab minimap · Esc pause
+           F use item · Tab minimap · F11 fullscreen · Esc pause
+           Space at a window or a dropped pallet vaults it
 <span class="r">KILLER</span>     WASD move · LMB swing · RMB place / reclaim trap
-           Space pick up &amp; hook · Tab minimap · Esc pause</pre>
+           Space pick up, hook, vault a window and break a pallet
+           Tab minimap · F11 fullscreen · Esc pause</pre>
   </div>
 </section>
 

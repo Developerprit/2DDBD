@@ -59,7 +59,15 @@ func _ready() -> void:
 	add_to_group("match")
 	EventBus.generator_completed.connect(_on_generator_completed)
 	EventBus.camera_shake.connect(_on_shake)
+	# A vault is invisible in a headless log unless we count it, and "cannot
+	# vault" was the reported bug -- so count it and print it.
+	EventBus.survivor_state_changed.connect(_on_survivor_state)
 	_begin()
+
+
+func _on_survivor_state(_id: int, state: String) -> void:
+	if state == "vault":
+		_vault_counter += 1
 
 
 func _exit_tree() -> void:
@@ -240,6 +248,17 @@ func _build_astar() -> void:
 		for x in map_size:
 			if MapGenerator.at(grid, map_size, x, y) == MapGenerator.F_WALL:
 				astar.set_point_solid(Vector2i(x, y), true)
+
+	# A window is a hole in a wall: the tile keeps its collider (you vault it,
+	# you do not walk through it), but the pathfinder must treat it as passable
+	# or every bot routes around it and vaulting never happens. The weight is
+	# deliberately heavy so a window is only taken when it clearly saves ground.
+	for entry in map_data.get("windows", []):
+		var cell := Utils.tile_of(entry["pos"])
+		if cell.x < 0 or cell.y < 0 or cell.x >= map_size or cell.y >= map_size:
+			continue
+		astar.set_point_solid(cell, false)
+		astar.set_point_weight_scale(cell, 1.8)
 
 
 func _instantiate_objects() -> void:
@@ -572,6 +591,8 @@ func _check_escape_win() -> void:
 # ---------------------------------------------------------------------------
 var _debug_match := false
 var _debug_timer := 0.0
+var _vault_counter := 0
+var _web_checked := false
 
 
 func _process(delta: float) -> void:
@@ -660,8 +681,11 @@ func _debug_log() -> void:
 	actually progressing (bots repairing, the killer hunting, the hook cycle)."""
 	var parts: Array = []
 	for sv in survivors:
-		parts.append("%s=%s/h%d%s" % [sv.char_id, Enums.health_to_string(sv.health),
-				sv.hook_count, "/AI" if sv.is_ai else "/P"])
+		# Include the state machine name: it is the only way to see from a log
+		# whether vaulting / repair / carry are actually firing.
+		parts.append("%s=%s/%s/h%d" % [sv.char_id, Enums.health_to_string(sv.health),
+				sv.machine.current_name, sv.hook_count])
+	parts.append("vaults=%d/probe=%d/try=%d" % [_vault_counter, SurvivorBrain.probe_hits, SurvivorBrain.vault_attempts])
 	var kpos := Vector2.ZERO
 	var kstate := "-"
 	if killer != null and is_instance_valid(killer):

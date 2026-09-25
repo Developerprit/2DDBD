@@ -146,6 +146,8 @@ func _read_input() -> void:
 		request_attack()
 	if Input.is_action_just_pressed("use_power"):
 		request_power()
+	if Input.is_action_just_pressed("interact") and not is_carrying:
+		_try_traverse()
 	if Input.is_action_just_pressed("interact"):
 		_interact_pressed()
 
@@ -158,7 +160,7 @@ func _interact_pressed() -> void:
 	# or break a pallet in front of the killer.
 	if try_pickup():
 		return
-	var w := _nearest_window()
+	var w := _nearest_vaultable_window()
 	if w != null:
 		if machine.has_state("vault"):
 			machine.force("vault", {"target": w, "time": w.vault_time(self)})
@@ -168,7 +170,7 @@ func _interact_pressed() -> void:
 		machine.force("break_pallet", {"target": p})
 
 
-func _nearest_window() -> WindowVault:
+func _nearest_vaultable_window() -> WindowVault:
 	var best: WindowVault = null
 	var best_d := GameConfig.TILE * 1.8
 	for n in get_tree().get_nodes_in_group("interactable"):
@@ -312,6 +314,59 @@ func _set_bloodlust(t: int) -> void:
 # ---------------------------------------------------------------------------
 # Attack
 # ---------------------------------------------------------------------------
+## Interact key while not carrying someone: vault a window, hop a standing
+## pallet, or start breaking a dropped one.
+func _try_traverse() -> void:
+	if machine.current_name != "move":
+		return
+	var w := _nearest_window()
+	if w != null:
+		end_carry_anim()
+		machine.force("vault", {"target": w, "time": w.vault_time(self),
+				"end": w.landing_point(global_position)})
+		return
+	var standing := _nearest_pallet_in_state(Pallet.State.STANDING)
+	if standing != null:
+		machine.force("vault", {"target": standing, "time": standing.vault_time(self),
+				"end": standing.landing_point(global_position)})
+		return
+	var dropped := nearest_breakable_pallet()
+	if dropped != null:
+		machine.force("break_pallet", {"target": dropped})
+
+
+func end_carry_anim() -> void:
+	pass
+
+
+func _nearest_window() -> WindowVault:
+	var best: WindowVault = null
+	var best_d := GameConfig.TILE * 1.9
+	for n in get_tree().get_nodes_in_group("interactable"):
+		var w := n as WindowVault
+		if w == null or w.broken:
+			continue
+		var d := global_position.distance_to(w.global_position)
+		if d < best_d:
+			best_d = d
+			best = w
+	return best
+
+
+func _nearest_pallet_in_state(st: int) -> Pallet:
+	var best: Pallet = null
+	var best_d := GameConfig.TILE * 1.9
+	for n in get_tree().get_nodes_in_group("interactable"):
+		var p := n as Pallet
+		if p == null or p.state != st:
+			continue
+		var d := global_position.distance_to(p.global_position)
+		if d < best_d:
+			best_d = d
+			best = p
+	return best
+
+
 func request_attack() -> void:
 	if machine.current_name in ["attack", "stun", "hooking", "break_pallet", "vault", "carry"]:
 		return
@@ -838,23 +893,37 @@ class VaultState:
 	var _start := Vector2.ZERO
 	var _end := Vector2.ZERO
 
+	var _target: Node = null
+
 	func enter(msg: Dictionary = {}) -> void:
 		var k := actor as Killer
-		var w: WindowVault = msg.get("target", null)
-		_total = float(msg.get("time", 1.5))
+		_target = msg.get("target", null)
+		_total = maxf(0.1, float(msg.get("time", 1.5)))
 		_start = k.global_position
-		_end = w.landing_point(k.global_position) if w != null else k.global_position
+		if _target is WindowVault:
+			_end = (_target as WindowVault).landing_point(_start)
+		elif _target is Pallet:
+			_end = (_target as Pallet).landing_point(_start)
+		else:
+			_end = _start
 		_timer = 0.0
 		k.move_input = Vector2.ZERO
 		k.velocity = Vector2.ZERO
+		if _end.distance_to(_start) > 1.0:
+			k.set_facing_from(_end - _start)
 		k.play_anim("vault_%s" % Utils.facing_suffix(k.facing), true)
+
+	func physics(_delta: float) -> void:
+		pass
 
 	func update(delta: float) -> void:
 		var k := actor as Killer
 		_timer += delta
-		var t := clampf(_timer / maxf(0.01, _total), 0.0, 1.0)
+		var t := clampf(_timer / _total, 0.0, 1.0)
 		k.global_position = _start.lerp(_end, ease(t, 0.4))
 		if t >= 1.0:
+			if _target != null and is_instance_valid(_target) and _target.has_method("on_interact_start"):
+				_target.on_interact_start(k)
 			machine.change("move")
 
 

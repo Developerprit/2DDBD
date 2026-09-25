@@ -50,7 +50,8 @@ func can_interact(actor: Node) -> bool:
 	if state == State.BROKEN:
 		return false
 	if actor.is_in_group("survivor"):
-		return state == State.STANDING
+		# Standing -> slam it down. Dropped -> vault over it.
+		return true
 	if actor.is_in_group("killer"):
 		return state == State.DROPPED
 	return false
@@ -59,7 +60,9 @@ func can_interact(actor: Node) -> bool:
 func prompt(actor: Node) -> String:
 	if actor.is_in_group("killer"):
 		return Locale.t("act.break_pallet")
-	return Locale.t("act.drop_pallet")
+	if state == State.STANDING:
+		return Locale.t("act.drop_pallet")
+	return Locale.t("act.vault_pallet")
 
 
 func hold_interact() -> bool:
@@ -109,6 +112,16 @@ func break_pallet() -> void:
 func on_broken_by_killer(killer: Node) -> void:
 	break_pallet()
 	SaveData.add_bloodpoints("sacrifice", 0)
+
+
+## Where the actor ends up after vaulting: straight over, perpendicular to the
+## pallet's span, on whichever side they started from.
+func landing_point(from_pos: Vector2) -> Vector2:
+	var normal := Vector2(-direction.y, direction.x)
+	var side := signf((from_pos - global_position).dot(normal))
+	if is_zero_approx(side):
+		side = 1.0
+	return global_position + normal * side * GameConfig.TILE * 2.4
 
 
 func vaultable_by(actor: Node) -> bool:
