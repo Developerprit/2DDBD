@@ -99,6 +99,12 @@ Clone it and you can reproduce the entire asset set byte for byte.
 
 ![Gameplay](docs/screenshot.png)
 
+*Killer's view. The small red pool at his feet is the 3 m stain; the yellow arrow at the screen edge is Killer Instinct, with the target's distance.*
+
+![Main menu](docs/menu.png)
+
+*Menus. Latin text is the hand-made 5x7 bitmap font; Chinese falls back to a system face.*
+
 ### Bloodweb progression
 - Every character owns a private ring of nodes: perks, items, add-ons and bloodpoint caches
 - Higher tiers are wider and more expensive; taking 60% of a tier unlocks the next one
