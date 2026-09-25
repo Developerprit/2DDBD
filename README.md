@@ -31,7 +31,11 @@ Clone it and you can reproduce the entire asset set byte for byte.
 - Repair, self-heal, heal others, unhook teammates, revive downed teammates
 - **Skill checks**: a sweeping needle around a dial; Space inside the gold band is a perfect, grey is a good, and a miss makes the generator explode and gives away your position
 - Four-step health ladder: healthy -> injured -> downed -> dying, with crawl movement and carry-wiggle
-- Three hook stages: a 4% self-unhook gamble, then the struggle phase, then sacrifice
+- Three hook stages, as in the original: a **first** hooking gives a 60 s rescue window and
+  one 4 % self-unhook gamble; a **second** goes straight to the struggle phase, where the
+  victim has to hold the interact key to fight the entity off; a **third** sacrifices
+  immediately, with no rescue window. Repeat-hooking one post on the same person counts as
+  one stage further along
 - Running leaves **scratch marks**, bleeding leaves **blood**, crouching makes you harder to spot
 - 4 items (med-kit / flashlight / toolbox / map) with 3 add-ons each
 - 12 survivor perks, unlocked through the Bloodweb
@@ -69,18 +73,19 @@ Clone it and you can reproduce the entire asset set byte for byte.
 ![A generated realm](docs/realms/macmillan.png)
 
 *A generated realm. Dark = walls, yellow = generators, red = hooks, white = windows, blue = pallets, green = exit gates.*
-
-![A generated realm](docs/realms/macmillan.png)
-
-*A generated realm. Dark = walls, yellow = generators, red = hooks, white = windows, blue = pallets, green = exit gates.*
 - Ships a **map inspection tool**: `--dump-map` renders a realm to PNG and prints a
   readability report (openness, reachability, corridor ratio, generator spacing, hook
   coverage). This is how the layout was measured rather than guessed at.
 
 ### Red stain and vision occlusion
-- **Red stain**: a cone of light on the ground in the direction the killer faces
-  (11 m / 54 deg). Survivors watch it sweep across the floor to read which way he is
-  committing, even through a wall -- one of the original's most important readability tools
+- **Red stain**: a pool of light on the ground at the killer's feet, in the direction he
+  faces (3 m / 64 deg). Survivors watch it sweep across the floor to read which way he is
+  committing, even through a wall -- one of the original's most important readability tools.
+  It is a pool, not a searchlight: at 11 m it lit up half the screen and stopped saying
+  anything about which way he was looking
+- **Killer Instinct**: arrows pinned to the screen edges pointing at the hooked survivor,
+  the open hatch, powered gates and any generator with progress on it, each labelled with
+  its distance. Survivors deliberately do not get this -- not knowing is their whole game
 - **Vision occlusion**: ambient darkness + wall light occluders + per-character point
   lights with shadows, so the far side of a wall genuinely falls dark; enemies behind a
   wall fade to translucent, and a survivor in a locker is not visible at all
@@ -89,10 +94,6 @@ Clone it and you can reproduce the entire asset set byte for byte.
   losing the target reset it (with a 16 m grace window)
 
 ### Systems
-
-### In game
-
-![Gameplay](docs/screenshot.png)
 
 ### In game
 
@@ -233,7 +234,8 @@ direct data channel, no signalling server involved).
   synchronisation has not been play-tested with multiple machines. Play solo first.
 - The AI completes the whole loop (repair, flee, rescue, heal, chase, hook) but its pallet-window
   mind games are still fairly basic.
-- Text uses Godot's built-in font; a pixel bitmap font is on the roadmap.
+- The UI uses a hand-made **5x7 bitmap font** (`tools/gen_font.py` builds an AngelCode
+  BMFont from 95 hand-written glyphs); Chinese falls back to the system CJK face.
 - Realm generation is deterministic: the same seed always builds the same realm, so
   multiplayer only needs to synchronise the seed and the realm id.
 - Bloodweb costs and tier widths are pure functions, so the economy can be

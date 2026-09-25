@@ -35,6 +35,7 @@ var pause_root: Control
 var paused := false
 var bl_vignette: Control
 var _vignette_tier := 0
+var _instinct: KillerInstinct
 
 
 func _ready() -> void:
@@ -71,6 +72,7 @@ func _build() -> void:
 	_build_map_overlay()
 	_build_pause_overlay()
 	_build_bloodlust_vignette()
+	_build_instinct()
 
 	fps_label = UITheme.dim("", 9)
 	fps_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -195,6 +197,15 @@ func _build_killer_panel() -> void:
 	item_label.add_theme_font_size_override("font_size", 10)
 	item_label.add_theme_color_override("font_color", UITheme.color("text_dim"))
 	v.add_child(item_label)
+
+
+## Objective pointers, killer only. Added first so it sits *under* the HUD panels:
+## the arrows live along the screen edges, which is exactly where the panels are.
+func _build_instinct() -> void:
+	_instinct = KillerInstinct.new()
+	_instinct.name = "KillerInstinct"
+	root.add_child(_instinct)
+	root.move_child(_instinct, 0)
 
 
 func _build_toasts() -> void:
@@ -406,9 +417,15 @@ func _sync_prompt() -> void:
 
 	match sv.machine.current_name:
 		"hooked":
-			text = Locale.t("act.struggle") if sv.hook_stage == 2 else Locale.t("act.self_unhook")
+			# Which hooking this is decides what comes next, so it is worth showing:
+			# stage 1 is a rescue window, stage 2 is a fight, and a third is final.
+			var nth := "%d/3" % mini(sv.hook_count, 3)
+			if sv.hook_stage == 2:
+				text = "%s   %s" % [Locale.t("act.struggle"), nth]
+				show_bar = true
+			else:
+				text = "%s   %s" % [Locale.t("act.self_unhook"), nth]
 			ratio = clampf(sv.struggle_value, 0.0, 1.0)
-			show_bar = sv.hook_stage == 2
 		"carried":
 			text = Locale.t("act.wiggle")
 			ratio = clampf(sv.wiggle, 0.0, 1.0)

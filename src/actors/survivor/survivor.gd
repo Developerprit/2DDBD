@@ -233,7 +233,7 @@ func _scan_interactables() -> void:
 			continue
 		# Prefer anything closer, but a hook holding a teammate wins ties.
 		var score := 1.0 - d / (it.interact_radius + GameConfig.TILE)
-		if it is Hook and (it as Hook).occupied_by != null:
+		if it is Hook and (it as Hook).victim != null:
 			score += 0.5
 		if score > best_score:
 			best_score = score
@@ -503,58 +503,45 @@ func hook_on(hook: Hook, killer: Node) -> void:
 		return
 	current_hook = hook
 	hook_count += 1
-	hook_stage = 1 if hook_count == 1 else 2
 	hook_timer = GameConfig.HOOK_STAGE_TIME
 	struggle_value = 1.0
-	hook.occupy(self)
 	global_position = hook.global_position + Vector2(0, 4)
 	set_health(Enums.Health.HOOKED)
 	AudioDirector.play_at("hook", global_position, _camera())
 	if GameConfig.screen_shake and not is_ai:
 		EventBus.camera_shake.emit(1.8, 0.4)
-	EventBus.survivor_hooked.emit(survivor_id, hook_stage, hook.global_position)
 	SaveData.add_bloodpoints("sacrifice", GameConfig.BP_HOOK)
 	if killer != null and killer.has_method("on_hook_complete"):
 		killer.on_hook_complete(self, hook)
 	if machine.has_state("hooked"):
 		machine.force("hooked")
+	# The hook owns the stage, the timer and the struggle bar -- and it may end this
+	# survivor on the spot (a third hooking sacrifices immediately), so it is told
+	# last, after our own state is consistent.
+	hook.occupy(self)
 
 
-func tick_hook(delta: float) -> void:
-	if health != Enums.Health.HOOKED:
-		return
-	hook_timer -= delta
-	if hook_stage == 1:
-		if hook_timer <= 0.0:
-			_enter_struggle_phase()
-	else:
-		# Struggle phase: the player must mash to keep the entity at bay.
-		struggle_value -= delta / GameConfig.HOOK_STRUGGLE_TIME
-		if is_ai:
-			struggle_value = maxf(struggle_value, 0.35 + sin(Time.get_ticks_msec() / 400.0) * 0.1)
-		if not is_ai and Input.is_action_pressed("interact"):
-			struggle_value = minf(1.0, struggle_value + delta * 0.22)
-		EventBus.survivor_interact_progress.emit(survivor_id,
-				Enums.InteractionKind.HOOKED_SELF, clampf(struggle_value, 0.0, 1.0))
-		if struggle_value <= 0.0:
-			sacrifice()
+## What this survivor adds to the struggle bar this frame. Positive buys time.
+##
+## The hook drains the bar on its own; this is only the victim's contribution. Bots
+## contribute almost nothing and fumble regularly, so a hooked bot genuinely dies if
+## nobody comes. The old code clamped an AI's bar to a 0.25 floor forever, which made
+## a hooked bot immortal and meant the sacrifice loop could never complete.
+func hook_struggle_input(delta: float) -> float:
+	if not is_ai:
+		return delta * GameConfig.S_STRUGGLE_INPUT if Input.is_action_pressed("interact") else 0.0
+	if randf() < GameConfig.AI_STRUGGLE_FUMBLE_CHANCE * delta:
+		return -GameConfig.AI_STRUGGLE_FUMBLE_LOSS
+	return 0.0
 
 
-func _enter_struggle_phase() -> void:
-	hook_stage = 2
-	hook_timer = GameConfig.HOOK_STRUGGLE_TIME
-	struggle_value = 1.0
-	EventBus.survivor_hooked.emit(survivor_id, 2, global_position)
-	EventBus.toast.emit(Locale.t("fb.hooked_struggle"), Color(0.9, 0.35, 0.30))
-	AudioDirector.play_at("mori", global_position, _camera(), -8.0)
-
-
-func on_unhooked(hook: Hook, by_self: bool) -> void:
-	if hook != null:
-		hook.free_hook()
+func on_unhooked(_hook: Hook, by_self: bool) -> void:
+	# The hook releases itself before calling us; calling free_hook() again here
+	# would be harmless but misleading about who owns the state.
 	current_hook = null
 	hook_timer = 0.0
 	struggle_value = 1.0
+	hook_stage = 0
 	set_health(Enums.Health.INJURED)
 	global_position += Vector2(randf_range(-10, 10), randf_range(6, 14))
 	EventBus.survivor_unhooked.emit(survivor_id)
@@ -567,9 +554,11 @@ func on_unhooked(hook: Hook, by_self: bool) -> void:
 
 func sacrifice() -> void:
 	AudioDirector.play_at("sacrifice", global_position, _camera(), -2.0)
-	if current_hook != null and is_instance_valid(current_hook):
-		current_hook.free_hook()
+	# The hook has already released itself and recorded the SACRIFICED stage.
+	# Calling free_hook() here would wipe that stage back to NONE.
 	current_hook = null
+	hook_timer = 0.0
+	struggle_value = 0.0
 	die("sacrificed")
 	SaveData.add_bloodpoints("sacrifice", GameConfig.BP_SACRIFICE)
 	EventBus.survivor_died.emit(survivor_id)
@@ -1067,13 +1056,13 @@ class HookedState:
 		if s.current_hook != null and is_instance_valid(s.current_hook):
 			s.global_position = s.current_hook.global_position + Vector2(0, 4)
 
-	func update(delta: float) -> void:
+	func update(_delta: float) -> void:
 		var s := actor as Survivor
-		s.tick_hook(delta)
-		if s.hook_stage == 2:
-			s.play_anim("struggle")
-		else:
-			s.play_anim("hooked")
+		# The hook drives the timer and the bar; this state only keeps the animation
+		# honest and bails out if the hook let us go underneath it.
+		s.play_anim("struggle" if s.hook_stage == 2 else "hooked")
+		if s.current_hook == null or not is_instance_valid(s.current_hook):
+			machine.change("move")
 
 
 class CarriedState:

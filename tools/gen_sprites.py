@@ -686,48 +686,131 @@ def make_hook():
 
 
 def make_pallet():
-    """32 x 14 upright pallet."""
+    """32 x 14 upright pallet.
+
+    Redrawn for legibility. The old version was four flat bars with three vertical
+    posts, which read as a bit of fence. This one has a dark outline so it separates
+    from any ground tile, planks with a lit top edge and a shadowed underside so it
+    reads as a solid object, and riveted steel straps -- the straps are what make it
+    unmistakably a pallet.
+    """
     c = Canvas(32, 14)
-    wood = rgba("#8a6a3c")
-    wood2 = rgba("#6d5230")
-    dark = rgba("#2a2118")
-    for i in range(4):
-        y = 2 + i * 3
-        c.rect(1, y, 30, y + 1, wood if i % 2 == 0 else wood2)
-        c.set(1 + i * 7, y, shade(wood, 0.7))
-    c.rect(2, 2, 3, 12, wood2)
-    c.rect(28, 2, 29, 12, wood2)
-    c.rect(14, 2, 15, 12, wood2)
-    c.rect(1, 13, 30, 13, dark)
+    outline = rgba("#17120c")
+    steel = rgba("#8e949c")
+    steel_dark = rgba("#565c64")
+    rivet = rgba("#ccd2da")
+    wood = rgba("#9a7742")
+    wood_alt = rgba("#86663a")
+    wood_dark = rgba("#5f4726")
+
+    c.rect(0, 0, 31, 13, outline)
+
+    # Five planks; 1 px of lit top edge and 1 px of shadowed underside each.
+    for i in range(5):
+        y = 1 + i * 2
+        if y + 1 > 12:
+            break
+        base = wood if i % 2 == 0 else wood_alt
+        c.rect(1, y, 30, y + 1, base)
+        c.rect(1, y, 30, y, shade(base, 1.28))
+        c.rect(1, y + 1, 30, y + 1, shade(base, 0.70))
+        c.set(6 + (i * 5) % 18, y + 1, wood_dark)
+        c.set(23 - (i * 3) % 15, y, wood_dark)
+
+    # Riveted steel straps at both ends and through the middle.
+    for x in (2, 14, 27):
+        c.rect(x, 0, x + 2, 13, steel_dark)
+        c.rect(x, 0, x + 1, 13, steel)
+        c.set(x, 2, rivet)
+        c.set(x + 1, 6, rivet)
+        c.set(x, 10, rivet)
     return c
 
 
 def make_pallet_broken():
-    c = Canvas(32, 8)
-    wood = rgba("#6d5230")
-    wood2 = rgba("#4a3722")
-    for i, x in enumerate((1, 9, 18, 25)):
-        w = 6 + (i % 2) * 2
-        y = 4 - (i % 3)
-        c.rect(x, y, x + w, y + 2, wood if i % 2 else wood2)
-    c.rect(4, 6, 12, 7, wood2)
-    c.rect(20, 5, 27, 6, wood)
+    """32 x 10 shattered pallet: planks split apart, straps torn loose.
+
+    The old version was four tan rectangles at slightly different heights and did
+    not read as "this pallet is gone" -- which is exactly what the sprite has to
+    communicate, since it is the only feedback that a loop has been closed.
+    """
+    c = Canvas(32, 10)
+    wood = rgba("#8a6a3c")
+    wood2 = rgba("#6a5029")
+    wood_dark = rgba("#48341c")
+    steel = rgba("#6c727a")
+
+    # Three planks, split at different points with jagged ends.
+    c.rect(1, 3, 9, 5, wood)
+    c.rect(1, 5, 9, 5, wood_dark)
+    c.set(10, 4, shade(wood, 1.25))
+    c.set(11, 3, wood2)
+
+    c.rect(11, 6, 19, 7, wood2)
+    c.rect(11, 7, 19, 7, wood_dark)
+    c.set(20, 6, wood2)
+
+    c.rect(20, 1, 29, 3, wood)
+    c.rect(20, 3, 29, 3, wood_dark)
+    c.set(30, 2, shade(wood, 1.25))
+
+    # A torn strap, bent out of shape.
+    c.rect(7, 8, 13, 9, steel)
+    c.set(14, 8, steel)
+    c.set(6, 7, steel)
+
+    # Splinters.
+    c.set(4, 7, wood2)
+    c.set(17, 2, wood_dark)
+    c.set(26, 7, wood2)
+    c.set(29, 6, steel)
+    c.set(2, 2, wood2)
     return c
 
 
 def make_window():
-    """32 x 10 window frame (vaultable)."""
+    """32 x 10 window punched through a wall.
+
+    Redrawn with masonry, a sill and actual glass. The old version was two parallel
+    bars with two pixels of shimmer, which read as a fence rail rather than as
+    something you vault through.
+    """
     c = Canvas(32, 10)
-    frame = rgba("#7d6a4a")
-    frame2 = rgba("#5a4c34")
-    c.rect(0, 2, 31, 3, frame)
-    c.rect(0, 7, 31, 8, frame)
-    c.rect(0, 2, 1, 8, frame2)
-    c.rect(30, 2, 31, 8, frame2)
-    c.rect(15, 2, 16, 8, frame2)
-    # glass shimmer
-    c.set(6, 4, rgba("#9fc4d6", 120))
-    c.set(22, 6, rgba("#9fc4d6", 120))
+    stone = rgba("#8f8a7c")
+    stone_lit = rgba("#aca795")
+    stone_dark = rgba("#5c584d")
+    glass = rgba("#1b2a35")
+    glass_mid = rgba("#2d475a")
+    glint = rgba("#c2dcec")
+    crack = rgba("#465866")
+
+    # Lintel and sill.
+    c.rect(0, 0, 31, 1, stone_dark)
+    c.rect(0, 0, 31, 0, stone)
+    c.rect(0, 8, 31, 9, stone_dark)
+    c.rect(0, 8, 31, 8, stone_lit)
+
+    # Jambs: both ends and the middle mullion.
+    for x in (0, 1, 29, 30, 15, 16):
+        c.rect(x, 0, x, 9, stone)
+        c.set(x, 0, stone_lit)
+
+    # Two glass panes.
+    c.rect(2, 2, 14, 7, glass)
+    c.rect(17, 2, 28, 7, glass)
+
+    # The classic diagonal glint -- it is what says "glass" at this size.
+    for i in range(9):
+        c.set(3 + i, 7 - i, glint)
+    for i in range(7):
+        c.set(18 + i, 6 - i, glass_mid)
+    c.rect(9, 2, 13, 2, glass_mid)
+
+    # A crack in the right pane.
+    c.set(24, 3, crack)
+    c.set(23, 4, crack)
+    c.set(24, 5, crack)
+    c.set(25, 6, crack)
     return c
 
 
@@ -1017,14 +1100,25 @@ def make_icon(canvas, name):
             s(p[0], p[1], amber)
         box(8, 13, 8, 13, red)
     elif name == "pallet":
-        for i in range(4):
-            box(2, 4 + i * 3, 13, 5 + i * 3, amber if i % 2 == 0 else white)
+        # Planks behind two steel straps, matching the world sprite. The old icon
+        # was four horizontal bars and was indistinguishable from the window icon.
+        box(2, 4, 13, 12, amber)
+        box(2, 7, 13, 7, rgba("#8a6a3c"))
+        box(2, 10, 13, 10, rgba("#8a6a3c"))
+        box(2, 4, 13, 4, white)
+        box(2, 12, 13, 12, white)
+        box(4, 4, 4, 12, white)
+        box(11, 4, 11, 12, white)
     elif name == "window":
-        box(2, 3, 13, 4, white)
-        box(2, 11, 13, 12, white)
-        box(2, 3, 3, 12, white)
-        box(12, 3, 13, 12, white)
-        box(7, 3, 8, 12, white)
+        # A masonry frame with two panes of glass and a diagonal glint, so it reads
+        # as a window you vault rather than as a box outline.
+        box(1, 3, 14, 12, white)
+        box(2, 4, 13, 11, rgba("#1b2a35"))
+        box(7, 4, 8, 11, white)
+        for i in range(5):
+            s(3 + i, 9 - i, rgba("#c2dcec"))
+        for i in range(4):
+            s(10 + i, 10 - i, rgba("#8fb6cc"))
     elif name == "hatch":
         c.ring(W / 2.0, W / 2.0, W / 2.0 - 1, W / 2.0 - 1, amber)
         c.ellipse(W / 2.0, W / 2.0, W / 2.0 - 3, W / 2.0 - 3, rgba("#101418"))

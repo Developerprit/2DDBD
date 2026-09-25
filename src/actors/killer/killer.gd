@@ -572,10 +572,13 @@ func nearest_free_hook() -> Hook:
 		var d := global_position.distance_to(h.global_position)
 		if d > GameConfig.TILE * 48.0:
 			continue
-		# Prefer unused hooks so every hook on the map gets spent first, and
-		# keep the score strictly distance-dominated so we always walk to the
-		# closest usable hook instead of wandering.
-		var score := -d + (3.0 * GameConfig.TILE if not h.used else 0.0)
+		# Prefer a post this survivor has not already been strung up on.
+		# Repeat-hooking one post advances them a whole extra stage, so the killer
+		# benefits from rotating -- and `used` used to retire a hook permanently
+		# after a single job, which meant a long trial could run out of posts
+		# entirely. Distance still dominates the score.
+		var score := -d + (3.0 * GameConfig.TILE if h.last_victim != carried \
+				else -2.0 * GameConfig.TILE)
 		if score > best_score:
 			best_score = score
 			best = h

@@ -49,14 +49,41 @@ static func c(hexv: String) -> Color:
 	return Color(hexv)
 
 
+## The game's bitmap font, with a CJK face chained behind it.
+##
+## The pixel font covers printable ASCII only -- 95 glyphs is the whole point of a
+## bitmap face at this size. Chinese UI text therefore has to come from somewhere,
+## and naming the system CJK fonts beats bundling a ~20 MB TTF into the repository.
+##
+## Note that assigning `fallbacks` *replaces* the engine's implicit fallback chain:
+## pointing it at ThemeDB.fallback_font is not enough, because that face has no CJK
+## either and every Chinese glyph renders as a tofu box. It has to be a SystemFont.
+static func pixel_font() -> Font:
+	var path := "res://assets/fonts/pixel_font.fnt"
+	if not ResourceLoader.exists(path):
+		return ThemeDB.fallback_font
+	var f: FontFile = load(path)
+	if f == null:
+		return ThemeDB.fallback_font
+
+	var cjk := SystemFont.new()
+	cjk.font_names = PackedStringArray([
+		"Microsoft YaHei", "微软雅黑",
+		"SimHei", "黑体",
+		"Noto Sans CJK SC", "Source Han Sans SC",
+		"PingFang SC", "WenQuanYi Micro Hei",
+		"sans-serif",
+	])
+	f.fallbacks = [cjk]
+	return f
+
+
 static func build(theme_name: String = "") -> Theme:
 	var p := palette(theme_name)
 	var t := Theme.new()
 
-	var font := ThemeDB.fallback_font
-
 	# ---- defaults ----
-	t.default_font = font
+	t.default_font = pixel_font()
 	t.default_font_size = 11
 
 	# ---- Button ----

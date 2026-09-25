@@ -776,8 +776,13 @@ func _debug_log() -> void:
 	for sv in survivors:
 		# Include the state machine name: it is the only way to see from a log
 		# whether vaulting / repair / carry are actually firing.
-		parts.append("%s=%s/%s/h%d" % [sv.char_id, Enums.health_to_string(sv.health),
-				sv.machine.current_name, sv.hook_count])
+		# Hook stage matters for reading a soak test: at a glance you can tell a
+		# rescue window (s1) from a fight (s2) from a survivor who has been taken.
+		var hook_note := ""
+		if sv.current_hook != null and is_instance_valid(sv.current_hook):
+			hook_note = "/s%d" % int(sv.current_hook.stage)
+		parts.append("%s=%s/%s/h%d%s" % [sv.char_id, Enums.health_to_string(sv.health),
+				sv.machine.current_name, sv.hook_count, hook_note])
 	parts.append("vaults=%d/scratch=%d/stain=%s/bloodlust=%d" % [_vault_counter,
 			KillerBrain.scratch_follows,
 			"yes" if (killer != null and killer.red_stain != null) else "NO",

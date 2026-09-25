@@ -51,6 +51,19 @@ const S_INTERACT_RANGE := 16.0
 const S_SELF_UNHOOK_CHANCE := 0.04
 const S_SELF_UNHOOK_ATTEMPT := 2.5
 
+## --- Struggle phase ---------------------------------------------------------
+## The bar drains at 1 / HOOK_STRUGGLE_TIME per second on its own. Holding interact
+## adds S_STRUGGLE_INPUT, which is just above the drain, so a player who keeps at it
+## holds their ground and one who gives up is sacrificed 60 s later.
+##
+## Bots add nothing and fumble, so they lose roughly 0.022 / s and are taken at
+## around 46 s. That number matters: it has to be short enough that a hooked bot
+## really is in danger (otherwise the whole sacrifice loop is decorative) and long
+## enough that a teammate can cross the realm to rescue them.
+const S_STRUGGLE_INPUT := 0.019
+const AI_STRUGGLE_FUMBLE_CHANCE := 0.5    ## average fumbles per second
+const AI_STRUGGLE_FUMBLE_LOSS := 0.01
+
 # ---------------------------------------------------------------------------
 # Objectives
 # ---------------------------------------------------------------------------
@@ -97,8 +110,12 @@ const BLOODLUST_TIERS := [15.0, 25.0, 35.0]
 
 ## --- Red stain: the cone of light the killer casts where he is looking ------
 ## Survivors read this to know which way he is committing, even through a wall.
-const RED_STAIN_RANGE := 176.0          ## 11 m
-const RED_STAIN_ANGLE_DEG := 54.0
+##
+## This is a pool of light at his feet, not a searchlight. At 11 m it lit up most of
+## the screen and stopped reading as "the direction he is facing", which is the only
+## job it has. At 3 m it is a committed, local signal again.
+const RED_STAIN_RANGE := 48.0           ## 3 m
+const RED_STAIN_ANGLE_DEG := 64.0
 
 ## --- Scratch-mark following (killer AI) ------------------------------------
 const SCRATCH_FOLLOW_RADIUS := 256.0    ## 16 m, per design

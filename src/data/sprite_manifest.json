@@ -803,7 +803,7 @@
     {
       "name": "pallet_broken",
       "w": 32,
-      "h": 8
+      "h": 10
     },
     {
       "name": "window",

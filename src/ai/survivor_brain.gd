@@ -66,6 +66,30 @@ func think(delta: float) -> void:
 # ---------------------------------------------------------------------------
 # Decisions
 # ---------------------------------------------------------------------------
+## Switching goals has to be *acted on*, not just decided.
+##
+## This is the "bots never let go of the generator" bug: the decision layer set
+## goal_kind to flee while the state machine was still sitting in `interact`, and
+## InteractState ignores move_input entirely. So a bot cheerfully kept repairing
+## with the killer standing on top of it. Anything that changes what the bot is
+## doing has to leave the interaction first.
+func _set_goal(kind: String) -> void:
+	if goal_kind == kind:
+		return
+	_release_interaction()
+	goal_kind = kind
+
+
+func _release_interaction() -> void:
+	if s == null or s.machine == null:
+		return
+	# Only `interact` needs interrupting: `vault` is finite and self-terminating.
+	if s.machine.current_name == "interact":
+		s.end_interaction()
+		if s.machine.has_state("move"):
+			s.machine.change("move")
+
+
 func _decide(delta: float) -> void:
 	var killer := _killer()
 	var killer_dist := 1e9
@@ -85,13 +109,20 @@ func _decide(delta: float) -> void:
 	# get hit, so it is a danger signal even when he is far away -- and unlike
 	# plain proximity it tells us which way to break out.
 	_stain_evade = false
-	if killer != null and killer.has_method("is_in_red_stain") \
-			and killer.is_in_red_stain(s.global_position):
-		_stain_evade = true
-		danger = true
+	if killer != null:
+		var in_stain: bool = killer.has_method("is_in_red_stain") \
+				and killer.is_in_red_stain(s.global_position)
+		# Being *looked at* from further out carries the same information as the
+		# stain -- he is committed in this direction -- so it earns the same
+		# sideways escape.
+		var watched: bool = killer.has_method("is_looking_at") \
+				and killer.is_looking_at(s) and killer_dist < GameConfig.TILE * 10.0
+		if in_stain or watched:
+			_stain_evade = true
+			danger = true
 
 	if danger:
-		goal_kind = "flee"
+		_set_goal("flee")
 		flee_timer = 4.0
 		_choose_flee_point()
 		return
@@ -105,7 +136,7 @@ func _decide(delta: float) -> void:
 	if s.health == Enums.Health.HEALTHY:
 		var hooked := _find_hooked_teammate()
 		if hooked != null:
-			goal_kind = "rescue"
+			_set_goal("rescue")
 			goal = hooked.global_position
 			if s.global_position.distance_to(goal) < GameConfig.TILE * 1.4:
 				s.interact_target = hooked.current_hook
@@ -114,7 +145,7 @@ func _decide(delta: float) -> void:
 			return
 		var downed := _find_downed_teammate()
 		if downed != null:
-			goal_kind = "revive"
+			_set_goal("revive")
 			goal = downed.global_position
 			if s.global_position.distance_to(goal) < GameConfig.TILE * 1.3:
 				s.move_input = Vector2.ZERO
@@ -136,7 +167,7 @@ func _decide(delta: float) -> void:
 		if can_heal or int(s.perk_mods.get("allow_self_heal", 0)) == 1:
 			var gen := _nearest_generator(s.global_position)
 			if gen != null:
-				goal_kind = "heal"
+				_set_goal("heal")
 				goal = gen.global_position + Vector2(GameConfig.TILE * 1.6, GameConfig.TILE * 1.6)
 				if s.global_position.distance_to(gen.global_position) < GameConfig.TILE * 2.0:
 					s.interact_target = _make_heal_stub()
@@ -146,7 +177,7 @@ func _decide(delta: float) -> void:
 	# Default: repair.
 	var gen2 := _nearest_generator(s.global_position)
 	if gen2 != null:
-		goal_kind = "repair"
+		_set_goal("repair")
 		target_generator = gen2
 		goal = gen2.global_position
 		if s.global_position.distance_to(gen2.global_position) < GameConfig.TILE * 1.5:
@@ -155,7 +186,7 @@ func _decide(delta: float) -> void:
 				s.machine.change("interact", {"target": gen2})
 		return
 
-	goal_kind = "idle"
+	_set_goal("idle")
 	goal = s.global_position
 
 

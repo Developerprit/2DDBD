@@ -1,0 +1,70 @@
+v1.6.0 - red stain, a real hook system, killer instinct and a pixel font
+
+Six items, two of which turned out to be symptoms of dead code rather than
+misconfiguration.
+
+1. Red stain is 3 m, not 11
+- RED_STAIN_RANGE 176 -> 48 px, angle 54 -> 64 deg. At 11 m the cone lit up half
+  the screen and stopped reading as "the direction he is facing", which is the
+  only job it has.
+- The bots' sideways-escape trigger gained a second condition (being inside his
+  vision cone at 10 m), because with a 3 m stain the original trigger almost
+  never fires any more.
+
+2. Hook / sacrifice system rebuilt
+The stage lived in two places: Hook.stage, set to FIRST on occupy and never
+touched again, and Survivor.hook_stage, driven by a per-frame tick. Three real
+defects fell out of that:
+- the struggle phase was unreachable from the hook side, so a hook could not
+  sacrifice anyone by itself;
+- the stage was chosen as hook_count == 1 ? FIRST : STRUGGLE, so a *third*
+  hooking merely began another struggle phase instead of ending the trial;
+- AI struggle was clamped to a 0.25 floor forever, so a hooked bot was immortal
+  and the entire sacrifice loop was decorative.
+The hook now owns the stage, the timer and the bar; the survivor mirrors it.
+  first hooking  -> 60 s rescue window, one 4 % self-unhook that is spent either way
+  second         -> straight to the struggle phase; hold interact to fight it off
+  third          -> sacrificed immediately, no timer, no rescue
+  same post, same victim -> counts as one stage further along
+AI survivors contribute no struggle input and fumble 50 %/s, which drains them in
+about 46 s of struggle. That number is deliberate: short enough that being hooked
+actually matters, long enough that a teammate can cross the realm.
+Hook.used was also retired -- it permanently consumed a hook after one job, which
+meant a long trial could run out of hooks entirely. Replaced with last_victim, so
+the killer is rewarded for rotating posts instead.
+
+3. Pallets and windows redrawn
+- pallet: five planks with a lit top edge and shadowed underside, three riveted
+  steel straps, dark outline
+- pallet_broken: split planks, a torn strap, splinters -- it has to communicate
+  "this loop is gone" at a glance, which the old tan rectangles did not
+- window: masonry frame, sill, two panes, diagonal glint and a crack
+- the 16x16 UI icons match, since the old pallet icon and window icon were
+  nearly indistinguishable
+
+4. Killer Instinct
+KillerInstinct (a Control drawn over the HUD) pins arrows to the screen edges for
+the hooked survivor, the open hatch, powered gates and any generator with
+progress, each labelled with its distance in metres; on-screen targets get a
+diamond marker instead. Bots get this from their decision layer -- this is the
+same information for the human. Survivors deliberately never get it.
+
+5. Bots would not let go of a generator
+The decision layer set goal_kind to flee while the state machine was still in
+`interact`, and InteractState ignores move_input. So a bot kept repairing with the
+killer standing on top of it, and kept repairing generators it had already decided
+to abandon. All goal changes now route through _set_goal(), which releases the
+interaction first: changing your mind has to reach the state machine.
+
+6. A real pixel font
+tools/gen_font.py builds an AngelCode BMFont (.fnt + PNG atlas) from 95
+hand-written 5x7 glyphs. Hand-written rather than thresholded from a system TTF,
+because thresholding an anti-aliased raster gives soft, uneven, font-dependent
+shapes. Godot imports .fnt natively as a FontFile. Chinese falls back to a
+SystemFont -- note that assigning `fallbacks` *replaces* the engine's implicit
+chain, so pointing it at ThemeDB.fallback_font renders every CJK glyph as tofu;
+it has to name the system CJK faces explicitly.
+
+Verified: 300 s soak shows the full s1 -> s2 -> sacrifice chain (3 sacrifices) with
+zero runtime errors; menu and in-game screenshots confirm the bitmap font and the
+CJK fallback; full-tree GDScript syntax pass is clean.
