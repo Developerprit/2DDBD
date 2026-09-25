@@ -107,6 +107,8 @@ func _begin() -> void:
 				_debug_match = true
 			"--dump-map":
 				_dump_map = true
+			"--test-vault":
+				_test_vault = true
 	var uargs := OS.get_cmdline_user_args()
 	for i in uargs.size():
 		if uargs[i] == "--map" and i + 1 < uargs.size():
@@ -120,6 +122,13 @@ func _begin() -> void:
 		_dump_map_now()
 		return
 	_spawn_actors()
+	# End-to-end vault check: drive a survivor through a real vault and verify the
+	# displacement actually crosses the obstacle. The geometry self-check in MapDump
+	# tests the maths; this tests that the maths survives the trip through the state
+	# machine, the collision body and the destination snap.
+	if _test_vault:
+		_run_vault_test()
+		return
 	_setup_camera()
 	AudioDirector.start_ambient()
 	AudioDirector.play_music("music_calm", -14.0)
@@ -641,6 +650,7 @@ func _check_escape_win() -> void:
 var _debug_match := false
 var _debug_timer := 0.0
 var _dump_map := false
+var _test_vault := false
 var _vault_counter := 0
 var _web_checked := false
 
@@ -750,6 +760,59 @@ func objective_positions() -> Array:
 	if hatch_node != null and hatch_node.is_open:
 		out.append({"pos": hatch_node.global_position, "done": true, "kind": "hatch"})
 	return out
+
+
+## Drives one real vault end to end and reports whether the survivor ended up on the
+## far side of the obstacle.
+##
+## The MapDump geometry check exercises landing_point() directly; this exercises it
+## through the whole path -- state machine, destination snap, collision body -- which
+## is where a correct-looking number can still turn into "the player was pushed
+## backwards".
+func _run_vault_test() -> void:
+	if windows.is_empty():
+		print("[vault-test] no windows on this realm")
+		get_tree().quit()
+		return
+	var w: WindowVault = windows[0]
+	var sv: Survivor = null
+	for s in survivors:
+		if s is Survivor:
+			sv = s
+			break
+	if sv == null:
+		print("[vault-test] no survivor")
+		get_tree().quit()
+		return
+
+	var normal := Vector2(-w.direction.y, w.direction.x)
+	var start: Vector2 = w.global_position + normal * GameConfig.TILE * 1.2
+	sv.global_position = start
+	sv.velocity = Vector2.ZERO
+	var expected: Vector2 = w.landing_point(start)
+	print("[vault-test] window=%s dir=%s" % [w.global_position, w.direction])
+	print("[vault-test] start=%s landing_point=%s" % [start, expected])
+
+	sv._begin_vault(w, expected, 0.4)
+	var frames := 0
+	while frames < 180:
+		await get_tree().physics_frame
+		frames += 1
+		if sv.machine.current_name != "vault":
+			break
+
+	var finish: Vector2 = sv.global_position
+	var side_before := signf((start - w.global_position).dot(normal))
+	var side_after := signf((finish - w.global_position).dot(normal))
+	var travelled := start.distance_to(finish) / float(GameConfig.TILE)
+	# Crossed means: opposite side, at least a tile past the obstacle, and we moved.
+	var crossed := not is_equal_approx(side_after, side_before) \
+			and absf((finish - w.global_position).dot(normal)) > GameConfig.TILE * 1.0 \
+			and travelled > 1.0
+	print("[vault-test] end=%s moved=%.2f tiles side %.0f -> %.0f  %s"
+			% [finish, travelled, side_before, side_after,
+			"PASS" if crossed else "FAIL"])
+	get_tree().quit()
 
 
 func _dump_map_now() -> void:

@@ -115,13 +115,16 @@ func on_broken_by_killer(killer: Node) -> void:
 
 
 ## Where the actor ends up after vaulting: straight over, perpendicular to the
-## pallet's span, on whichever side they started from.
+## pallet's span, on the *far* side of it.
+##
+## Same sign bug as the window -- see WindowVault.landing_point(). The side term used
+## to be added, which landed the actor back where they came from.
 func landing_point(from_pos: Vector2) -> Vector2:
 	var normal := Vector2(-direction.y, direction.x)
 	var side := signf((from_pos - global_position).dot(normal))
 	if is_zero_approx(side):
 		side = 1.0
-	return global_position + normal * side * GameConfig.TILE * 2.4
+	return global_position - normal * side * GameConfig.TILE * 2.4
 
 
 func vaultable_by(actor: Node) -> bool:

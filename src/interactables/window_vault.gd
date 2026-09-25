@@ -42,13 +42,21 @@ func vault_time(actor: Node) -> float:
 	return GameConfig.S_VAULT_WINDOW_TIME
 
 
-## Where the actor ends up after vaulting: straight through, perpendicular.
+## Where the actor ends up after vaulting: straight through, on the far side.
+##
+## The sign of `side` used to be applied as-is, which placed the landing point back
+## on the side the actor came from. Vaulting therefore moved you 2.6 tiles *towards*
+## where you started -- in play it reads as "I pressed vault and got shoved one step
+## backwards", which is exactly the bug that was reported.
+##
+## Crossing means ending up opposite the side you approached from, so the side term
+## is subtracted rather than added.
 func landing_point(from_pos: Vector2) -> Vector2:
 	var normal := Vector2(-direction.y, direction.x)
 	var side := signf((from_pos - global_position).dot(normal))
 	if is_zero_approx(side):
 		side = 1.0
-	return global_position + normal * side * GameConfig.TILE * 2.6
+	return global_position - normal * side * GameConfig.TILE * 2.6
 
 
 func on_interact_start(actor: Node) -> void:

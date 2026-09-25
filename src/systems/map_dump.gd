@@ -222,6 +222,58 @@ static func report(map_data: Dictionary, mc: MatchController) -> void:
 		print("[map] openness: mean wall distance %.1f tiles (max %d) over %d walkable tiles"
 				% [total / float(count), worst, count])
 
+	_report_vault_geometry(map_data)
+
+
+## Vault geometry. Every vault point is checked from both sides: the landing point
+## must be on the OPPOSITE side of the obstacle from where the actor came, and far
+## enough past it to have actually cleared it.
+##
+## This exists because the side term in landing_point() was once added instead of
+## subtracted. The only symptom was a player pressing vault and being shoved one step
+## backwards, which no other check in this file could have caught.
+static func _report_vault_geometry(map_data: Dictionary) -> void:
+	var total := 0
+	var bad := 0
+	for entry in map_data.get("windows", []):
+		total += 1
+		if not _check_vault(entry["pos"], entry["dir"], true):
+			bad += 1
+	for entry in map_data.get("pallets", []):
+		total += 1
+		if not _check_vault(entry["pos"], entry["dir"], false):
+			bad += 1
+	print("[map] vault landing: %d/%d correct%s" % [total - bad, total,
+			"" if bad == 0 else "   <-- BROKEN"])
+
+
+## Exercises the real landing_point() on a throwaway instance rather than re-deriving
+## the maths here, so the test cannot drift away from the code it is testing.
+static func _check_vault(pos: Vector2, dir: Vector2, is_window: bool) -> bool:
+	var normal := Vector2(-dir.y, dir.x)
+	for s in [-1.0, 1.0]:
+		var from: Vector2 = pos + normal * s * GameConfig.TILE * 1.2
+		var landing: Vector2
+		if is_window:
+			var w := WindowVault.new()
+			w.direction = dir
+			w.global_position = pos
+			landing = w.landing_point(from)
+			w.free()
+		else:
+			var pl := Pallet.new()
+			pl.direction = dir
+			pl.global_position = pos
+			landing = pl.landing_point(from)
+			pl.free()
+		# Must end up opposite the side we approached from...
+		if not is_equal_approx(signf((landing - pos).dot(normal)), -s):
+			return false
+		# ...and more than one tile past the obstacle's line, or we never cleared it.
+		if absf((landing - pos).dot(normal)) < GameConfig.TILE * 1.5:
+			return false
+	return true
+
 
 static func _flood(grid: PackedByteArray, n: int) -> PackedByteArray:
 	var seen := PackedByteArray()

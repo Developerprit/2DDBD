@@ -178,13 +178,19 @@ func _read_input() -> void:
 func _begin_vault(target: Node, end_pos: Vector2, duration: float) -> void:
 	if target == null or not is_instance_valid(target):
 		return
-	# An overshoot can land inside a wall, so pull the destination back onto a
-	# walkable tile before committing to it.
+	# An overshoot can land inside a wall, so pull the destination back onto a walkable
+	# tile -- but only if the correction keeps us on the *far* side. Snapping to a
+	# walkable tile on the near side would silently turn a vault back into "shove the
+	# player backwards", which is exactly the bug this path exists to avoid.
 	var mc := MatchController.instance
 	if mc != null:
 		var cell := mc.nearest_open_cell(Utils.tile_of(end_pos))
 		if cell.x >= 0 and Utils.tile_center(cell).distance_to(end_pos) <= GameConfig.TILE * 3.0:
-			end_pos = Utils.tile_center(cell)
+			var fixed := Utils.tile_center(cell)
+			var forward := end_pos - global_position
+			if forward.length() < 1.0 \
+					or (fixed - global_position).dot(forward.normalized()) >= 0.0:
+				end_pos = fixed
 	end_interaction()
 	if machine.has_state("vault"):
 		machine.force("vault", {"target": target, "end": end_pos, "time": duration})
