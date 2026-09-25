@@ -16,3 +16,5 @@ _mapcheck/
 _map_*.png
 _shot/
 _shot/
+__pycache__/
+*.pyc
