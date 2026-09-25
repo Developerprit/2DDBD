@@ -1,0 +1,48 @@
+{
+  "trapper": {
+    "id": "trapper",
+    "name_key": "char.trapper",
+    "portrait": "killer_trapper",
+    "sprite_set": "trapper",
+    "weapon": "cleaver",
+    "move_speed": 4.6,
+    "terror_radius": 32.0,
+    "hitbox_radius": 7.0,
+    "attack": {
+      "windup": 0.35,
+      "cooldown": 3.0,
+      "range": 2.2,
+      "arc_deg": 90.0,
+      "weapon_hit_delay": 0.15
+    },
+    "lunge": {
+      "speed": 6.0,
+      "duration": 0.5,
+      "recover": 1.0,
+      "charge_time": 0.25
+    },
+    "power": {
+      "id": "bear_trap",
+      "name_key": "power.bear_trap",
+      "desc_key": "power.bear_trap.desc",
+      "max_traps": 6,
+      "start_traps": 2,
+      "place_time": 2.5,
+      "pickup_time": 2.5,
+      "escape_chance": 0.16,
+      "escape_attempt_time": 2.5,
+      "injure_on_escape": true,
+      "trap_hitbox": 5.0,
+      "carry_speed_mult": 0.8,
+      "cooldown_mult": 0.6
+    },
+    "addons": [
+      {"id": "trapper_sack", "name": {"en": "Trapper Sack", "zh": "夹子布袋"}, "desc": {"en": "+2 carryable traps. Cannot pick up placed traps.", "zh": "可携带夹子 +2，但无法捡回已放置的夹子。"}, "mods": {"max_traps": 2, "no_pickup": 1}},
+      {"id": "tar_bottle", "name": {"en": "Tar Bottle", "zh": "焦油瓶"}, "desc": {"en": "Traps are darker and much harder to spot.", "zh": "夹子颜色更深，更难被发现。"}, "mods": {"stealth": 1}},
+      {"id": "honed_stone", "name": {"en": "Honed Stone", "zh": "磨石"}, "desc": {"en": "Survivors take longer to free themselves.", "zh": "逃生者挣脱夹子所需时间更长。"}, "mods": {"escape_slow": 0.35}},
+      {"id": "rusted_chain", "name": {"en": "Rusted Chain", "zh": "锈链"}, "desc": {"en": "Freeing yourself always injures you.", "zh": "挣脱夹子后必定受伤。"}, "mods": {"always_injure": 1}},
+      {"id": "bloody_coil", "name": {"en": "Bloody Coil", "zh": "血腥线圈"}, "desc": {"en": "Traps never spawn far from generators.", "zh": "夹子总是生成在发电机附近。"}, "mods": {"bias_generator": 1}},
+      {"id": "fastening_tools", "name": {"en": "Fastening Tools", "zh": "固定工具"}, "desc": {"en": "Place traps 40% faster.", "zh": "放置夹子速度提升 40%。"}, "mods": {"place_speed": 0.4}}
+    ]
+  }
+}

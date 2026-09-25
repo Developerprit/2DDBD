@@ -1,0 +1,390 @@
+class_name SurvivorBrain
+extends RefCounted
+## Bot survivor decision making.
+##
+## Priorities, highest first:
+##   1. flee the killer when he is near or has line of sight
+##   2. rescue a hooked teammate when healthy
+##   3. heal when injured (self-care / medkit)
+##   4. repair the nearest unfinished generator
+##
+## Movement uses the match's shared AStarGrid2D, so bots path around walls
+## instead of grinding into them.
+
+var s: Survivor
+var path: Array = []
+var path_index := 0
+var repath_timer := 0.0
+var goal := Vector2.ZERO
+var goal_kind := "idle"
+var target_generator: Generator = null
+var flee_timer := 0.0
+var reaction_timer := 0.0
+var _wander := Vector2.ZERO
+
+const REPATH_INTERVAL := 0.9
+const ARRIVE_DIST := 12.0
+
+
+var _anchor_pos := Vector2.ZERO
+var _anchor_time := 0.0
+var _unstick_count := 0
+
+
+func _init(survivor: Survivor) -> void:
+	s = survivor
+
+
+func dispose() -> void:
+	s = null
+	path.clear()
+	target_generator = null
+
+
+func think(delta: float) -> void:
+	if MatchController.instance == null:
+		return
+	repath_timer -= delta
+	reaction_timer -= delta
+	_update_stuck(delta)
+
+	match s.health:
+		Enums.Health.DOWNED, Enums.Health.DYING:
+			_do_down_state(delta)
+			return
+		Enums.Health.HOOKED, Enums.Health.DEAD, Enums.Health.ESCAPED:
+			s.move_input = Vector2.ZERO
+			return
+
+	if s.machine.current_name != "move":
+		return
+
+	_decide(delta)
+	_follow_path(delta)
+
+
+# ---------------------------------------------------------------------------
+# Decisions
+# ---------------------------------------------------------------------------
+func _decide(delta: float) -> void:
+	var killer := _killer()
+	var killer_dist := 1e9
+	if killer != null:
+		killer_dist = s.global_position.distance_to(killer.global_position)
+
+	# Panic only when the killer is genuinely close, or when he can actually see
+	# us. Fleeing the entire terror radius left the bots unable to repair
+	# anything, which made every trial unwinnable.
+	var danger := killer_dist < GameConfig.TILE * 9.0
+	if killer != null and killer.has_method("is_looking_at") and killer.is_looking_at(s):
+		danger = true
+	if killer_dist < GameConfig.TILE * 6.0:
+		danger = true
+
+	if danger:
+		goal_kind = "flee"
+		flee_timer = 4.0
+		_choose_flee_point()
+		return
+
+	if flee_timer > 0.0:
+		flee_timer -= delta
+		if goal_kind == "flee":
+			return
+
+	# Rescue: hooked teammates first, then downed ones.
+	if s.health == Enums.Health.HEALTHY:
+		var hooked := _find_hooked_teammate()
+		if hooked != null:
+			goal_kind = "rescue"
+			goal = hooked.global_position
+			if s.global_position.distance_to(goal) < GameConfig.TILE * 1.4:
+				s.interact_target = hooked.current_hook
+				if s.interact_target != null and s.interact_target.can_interact(s):
+					s.machine.change("interact", {"target": s.interact_target})
+			return
+		var downed := _find_downed_teammate()
+		if downed != null:
+			goal_kind = "revive"
+			goal = downed.global_position
+			if s.global_position.distance_to(goal) < GameConfig.TILE * 1.3:
+				s.move_input = Vector2.ZERO
+				_revive_progress += delta
+				EventBus.survivor_interact_progress.emit(s.survivor_id,
+						Enums.InteractionKind.REVIVE,
+						clampf(_revive_progress / GameConfig.REVIVE_TIME, 0.0, 1.0))
+				if _revive_progress >= GameConfig.REVIVE_TIME:
+					_revive_progress = 0.0
+					downed.revive()
+					SaveData.add_bloodpoints("altruism", GameConfig.BP_HEAL_OTHER)
+			else:
+				_revive_progress = 0.0
+			return
+
+	# Self heal when hurt and the killer is not around.
+	if s.health == Enums.Health.INJURED and killer_dist > GameConfig.TERROR_RADIUS * 0.9:
+		var can_heal := s.item_kind == "medkit" and s.item_charges > 0.0
+		if can_heal or int(s.perk_mods.get("allow_self_heal", 0)) == 1:
+			var gen := _nearest_generator(s.global_position)
+			if gen != null:
+				goal_kind = "heal"
+				goal = gen.global_position + Vector2(GameConfig.TILE * 1.6, GameConfig.TILE * 1.6)
+				if s.global_position.distance_to(gen.global_position) < GameConfig.TILE * 2.0:
+					s.interact_target = _make_heal_stub()
+					_start_self_heal()
+				return
+
+	# Default: repair.
+	var gen2 := _nearest_generator(s.global_position)
+	if gen2 != null:
+		goal_kind = "repair"
+		target_generator = gen2
+		goal = gen2.global_position
+		if s.global_position.distance_to(gen2.global_position) < GameConfig.TILE * 1.5:
+			s.interact_target = gen2
+			if gen2.can_interact(s):
+				s.machine.change("interact", {"target": gen2})
+		return
+
+	goal_kind = "idle"
+	goal = s.global_position
+
+
+func _start_self_heal() -> void:
+	# Self-heal uses the same interaction pipeline but without a world object,
+	# so we drive the progress directly.
+	var needed := GameConfig.HEAL_SELF_TIME
+	if s.item_kind == "medkit":
+		needed /= 1.5
+	needed /= float(s.perk_mods.get("heal_speed", 1.0))
+	s.interact_progress += get_process_delta() / needed
+	if s.item_kind == "medkit":
+		s.item_charges = maxf(0.0, s.item_charges - get_process_delta() * 1.2)
+	EventBus.survivor_interact_progress.emit(s.survivor_id,
+			Enums.InteractionKind.HEAL_SELF, clampf(s.interact_progress, 0.0, 1.0))
+	if s.interact_progress >= 1.0:
+		s.interact_progress = 0.0
+		s.heal(1.0)
+		AudioDirector.play_at("heal_done", s.global_position, _camera(), -8.0)
+
+
+var _last_think_time := 0.0
+
+
+func get_process_delta() -> float:
+	var now := Time.get_ticks_msec() / 1000.0
+	var d := clampf(now - _last_think_time, 0.0, 0.1)
+	_last_think_time = now
+	return d
+
+
+func _make_heal_stub() -> Interactable:
+	return null
+
+
+func _do_down_state(delta: float) -> void:
+	var killer := _killer()
+	if killer == null:
+		s.move_input = Vector2.ZERO
+		return
+	var away: Vector2 = s.global_position - (killer as Node2D).global_position.normalized()
+	s.move_input = away
+	s.gait = Enums.Gait.CRAWL
+
+
+func _choose_flee_point() -> void:
+	var killer := _killer()
+	if killer == null:
+		goal = _random_point_near(s.global_position, GameConfig.TILE * 10.0)
+		return
+	var away: Vector2 = s.global_position - (killer as Node2D).global_position
+	if away.length() < 1.0:
+		away = Vector2.RIGHT
+	away = away.normalized()
+
+	# Prefer a nearby window or pallet to run, falling back to open space.
+	var best: Vector2 = s.global_position + away * GameConfig.TILE * 12.0
+	var best_score := -1e9
+	for n in s.get_tree().get_nodes_in_group("interactable"):
+		var it := n as Interactable
+		if it == null:
+			continue
+		if not (it is Pallet or it is WindowVault):
+			continue
+		var d := s.global_position.distance_to(it.global_position)
+		if d > GameConfig.TILE * 16.0:
+			continue
+		# Must not run towards the killer.
+		var towards := (it.global_position - s.global_position).normalized()
+		if towards.dot(away) < 0.1:
+			continue
+		var score := 40.0 - d * 0.05
+		if score > best_score:
+			best_score = score
+			best = it.global_position + towards * GameConfig.TILE * 1.5
+	goal = best
+
+
+func _random_point_near(from: Vector2, radius: float) -> Vector2:
+	var a := randf() * TAU
+	return from + Vector2(cos(a), sin(a)) * radius
+
+
+func _killer() -> Node:
+	var best: Node = null
+	var best_d := 1e9
+	for k in s.get_tree().get_nodes_in_group("killer"):
+		if not is_instance_valid(k):
+			continue
+		var d := s.global_position.distance_to(k.global_position)
+		if d < best_d:
+			best_d = d
+			best = k
+	return best
+
+
+var _revive_progress := 0.0
+
+
+func _find_downed_teammate() -> Survivor:
+	var best: Survivor = null
+	var best_d := 1e9
+	for n in s.get_tree().get_nodes_in_group("survivor"):
+		var sv := n as Survivor
+		if sv == null or sv == s or not is_instance_valid(sv):
+			continue
+		if sv.health != Enums.Health.DOWNED and sv.health != Enums.Health.DYING:
+			continue
+		var d := s.global_position.distance_to(sv.global_position)
+		if d < best_d:
+			best_d = d
+			best = sv
+	return best
+
+
+func _find_hooked_teammate() -> Survivor:
+	for n in s.get_tree().get_nodes_in_group("survivor"):
+		var sv := n as Survivor
+		if sv == null or sv == s or not is_instance_valid(sv):
+			continue
+		if sv.health == Enums.Health.HOOKED and not sv.is_ai:
+			pass
+		if sv.health == Enums.Health.HOOKED:
+			return sv
+	return null
+
+
+func _nearest_generator(from: Vector2) -> Generator:
+	var best: Generator = null
+	var best_d := 1e9
+	for n in s.get_tree().get_nodes_in_group("interactable"):
+		var g := n as Generator
+		if g == null or g.completed:
+			continue
+		var d := from.distance_to(g.global_position)
+		if d < best_d:
+			best_d = d
+			best = g
+	return best
+
+
+# ---------------------------------------------------------------------------
+# Path following
+# ---------------------------------------------------------------------------
+## Net-displacement watchdog: a bot jittering between two path cells moves a
+## fraction of a pixel every frame but never actually goes anywhere, so we
+## measure how far it has drifted over a 1.5 s window instead.
+func _update_stuck(delta: float) -> void:
+	if s.machine.current_name != "move":
+		_anchor_time = 0.0
+		return
+	_anchor_time += delta
+	if _anchor_time < 1.5:
+		return
+	var net := s.global_position.distance_to(_anchor_pos)
+	_anchor_pos = s.global_position
+	_anchor_time = 0.0
+	if net > 12.0:
+		_unstick_count = 0
+		return
+	path.clear()
+	path_index = 0
+	repath_timer = 0.0
+	var heading := goal - s.global_position
+	if heading.length() < 1.0:
+		heading = Vector2.RIGHT
+	var perp := Vector2(-heading.y, heading.x).normalized()
+	if randf() < 0.5:
+		perp = -perp
+	goal = s.global_position + perp * GameConfig.TILE * 5.0
+	_unstick_count += 1
+	if _unstick_count >= 3:
+		_unstick_count = 0
+		var mc := MatchController.instance
+		if mc != null:
+			var here := Utils.tile_of(s.global_position)
+			for d in [Vector2i(2, 0), Vector2i(-2, 0), Vector2i(0, 2), Vector2i(0, -2),
+					Vector2i(3, 3), Vector2i(-3, 3)]:
+				var cell := mc.nearest_open_cell(here + d)
+				if cell.x >= 0 and cell != here:
+					s.global_position = Utils.tile_center(cell)
+					break
+				s.velocity = Vector2.ZERO
+				path.clear()
+				_anchor_pos = s.global_position
+
+
+func _follow_path(delta: float) -> void:
+	var mc := MatchController.instance
+	if mc == null:
+		s.move_input = Vector2.ZERO
+		return
+
+	if repath_timer <= 0.0 or path.is_empty():
+		repath_timer = REPATH_INTERVAL
+		path = mc.find_path(s.global_position, goal)
+		path_index = 0
+
+	if path.is_empty():
+		# No path: fall back to steering straight at the goal.
+		s.move_input = (goal - s.global_position).normalized()
+		return
+
+	while path_index < path.size() and \
+			s.global_position.distance_to(path[path_index]) < GameConfig.TILE * 0.55:
+		path_index += 1
+
+	if path_index >= path.size():
+		s.move_input = Vector2.ZERO
+		# Small idle jitter so bots do not stand perfectly still.
+		if goal_kind == "idle" and randf() < 0.01:
+			s.move_input = Vector2(randf_range(-1, 1), randf_range(-1, 1)).normalized()
+		return
+
+	var next: Vector2 = path[path_index]
+	var dir := (next - s.global_position).normalized()
+	# A little separation so a pack of bots does not stack.
+	var sep := Vector2.ZERO
+	for n in s.get_tree().get_nodes_in_group("survivor"):
+		var other := n as Survivor
+		if other == null or other == s or not is_instance_valid(other):
+			continue
+		var d := s.global_position.distance_to(other.global_position)
+		if d < 10.0 and d > 0.1:
+			sep += (s.global_position - other.global_position) / d
+	s.move_input = (dir + sep * 0.6).normalized()
+
+	# Gait: sprint unless we want to be quiet near the killer.
+	var k := _killer()
+	var quiet := k != null and s.global_position.distance_to(k.global_position) < GameConfig.TILE * 18.0
+	if quiet and goal_kind != "flee":
+		s.gait = Enums.Gait.CROUCH if randf() < 0.4 else Enums.Gait.WALK
+	else:
+		s.gait = Enums.Gait.RUN
+	if goal_kind == "flee":
+		s.gait = Enums.Gait.RUN
+
+
+func _camera() -> Camera2D:
+	var vp := s.get_viewport()
+	return vp.get_camera_2d() if vp != null else null

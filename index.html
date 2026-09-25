@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2DDBD — 俯视角像素非对称生存恐怖</title>
+<meta name="description" content="2DDBD：Godot 4 从零写成的俯视角 2D 像素非对称恐怖游戏。一名杀手对抗四名逃生者。全部美术与音效程序化生成。">
+<link rel="icon" href="icon.svg">
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   2DDBD landing page
+   Art direction: an industrial incident dossier. Evidence tags, stamped
+   headings, condensed display type against a monospace record column.
+   Deliberately asymmetric — the game is 1v4, the layout is 1v4 too.
+   No centred-everything hero, no glassmorphism, no violet gradients.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --blood:      #a8342a;
+  --blood-lift: #c9483a;
+  --warn:       #c9a227;
+  --moss:       #5f7a52;
+
+  --f-display: "Bahnschrift Condensed", "Bahnschrift SemiCondensed", "Oswald",
+               "Arial Narrow", "Helvetica Neue", sans-serif;
+  --f-body:    Georgia, "Songti SC", "SimSun", "Times New Roman", serif;
+  --f-mono:    "Cascadia Mono", Consolas, "SF Mono", ui-monospace, monospace;
+
+  --step--1: clamp(0.76rem, 0.74rem + 0.12vw, 0.84rem);
+  --step-0:  clamp(0.94rem, 0.90rem + 0.2vw, 1.05rem);
+  --step-1:  clamp(1.15rem, 1.06rem + 0.45vw, 1.42rem);
+  --step-2:  clamp(1.5rem, 1.28rem + 1.1vw, 2.2rem);
+  --step-3:  clamp(2.1rem, 1.5rem + 3vw, 4rem);
+  --step-4:  clamp(3.4rem, 1.6rem + 9vw, 9.5rem);
+
+  --gut: clamp(1.1rem, 0.6rem + 2.2vw, 3.2rem);
+  --rail: 178px;
+  --edge: clamp(1rem, 0.4rem + 2.4vw, 2.6rem);
+}
+
+html[data-theme="dark"] {
+  --bg:      #0c0e0d;
+  --bg-alt:  #111413;
+  --panel:   #151917;
+  --rule:    #262b28;
+  --rule-hi: #3a413c;
+  --ink:     #ded9cf;
+  --ink-dim: #8b8d84;
+  --ink-mute:#5d615a;
+  --shadow:  0 24px 60px -30px rgba(0,0,0,.9);
+  color-scheme: dark;
+}
+html[data-theme="light"] {
+  --bg:      #e7e3d8;
+  --bg-alt:  #f1eee5;
+  --panel:   #f7f4ec;
+  --rule:    #cfc9ba;
+  --rule-hi: #a9a294;
+  --ink:     #1b1d1b;
+  --ink-dim: #5c5f57;
+  --ink-mute:#8b8d84;
+  --shadow:  0 20px 44px -32px rgba(40,35,25,.5);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: var(--step-0);
+  line-height: 1.62;
+  overflow-x: hidden;
+}
+
+/* A paper grain. Extremely low contrast on purpose — you should feel it,
+   not see it. */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 9999;
+  opacity: .035;
+  background-image:
+    repeating-linear-gradient(0deg, currentColor 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, currentColor 0 1px, transparent 1px 4px);
+}
+html[data-theme="light"] body::before { opacity: .05; }
+
+::selection { background: var(--blood); color: #fff; }
+
+/* ─── Type ──────────────────────────────────────────────────────────────── */
+h1, h2, h3, h4, .display {
+  font-family: var(--f-display);
+  font-weight: 600;
+  line-height: .92;
+  letter-spacing: -.015em;
+  text-transform: uppercase;
+  margin: 0;
+}
+h2 { font-size: var(--step-3); }
+h3 { font-size: var(--step-2); }
+h4 { font-size: var(--step-1); letter-spacing: .01em; }
+p  { margin: 0 0 1em; max-width: 62ch; }
+a  { color: inherit; }
+
+.mono {
+  font-family: var(--f-mono);
+  font-size: var(--step--1);
+  letter-spacing: .06em;
+}
+.tag {
+  font-family: var(--f-mono);
+  font-size: 0.68rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.stamp {
+  display: inline-block;
+  font-family: var(--f-mono);
+  font-size: .66rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--blood-lift);
+  border: 1px solid var(--blood);
+  padding: .28em .6em;
+  transform: rotate(-1.4deg);
+}
+html[data-theme="light"] .stamp { color: var(--blood); }
+
+/* ─── Top record bar ────────────────────────────────────────────────────── */
+.bar {
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 1.1rem;
+  padding: .55rem var(--edge);
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  border-bottom: 1px solid var(--rule);
+  backdrop-filter: saturate(1.1);
+}
+.bar .id {
+  font-family: var(--f-mono); font-size: .72rem;
+  letter-spacing: .16em; color: var(--blood-lift);
+  white-space: nowrap;
+}
+html[data-theme="light"] .bar .id { color: var(--blood); }
+.bar .spacer { flex: 1; }
+.bar nav { display: flex; gap: 1.05rem; }
+.bar nav a {
+  font-family: var(--f-mono); font-size: .72rem;
+  letter-spacing: .1em; text-decoration: none;
+  color: var(--ink-dim); text-transform: uppercase;
+  padding-bottom: 2px; border-bottom: 1px solid transparent;
+  transition: color .18s, border-color .18s;
+}
+.bar nav a:hover { color: var(--ink); border-bottom-color: var(--blood); }
+@media (max-width: 880px) { .bar nav { display: none; } }
+
+.toggles { display: flex; gap: .35rem; }
+.tgl {
+  font-family: var(--f-mono); font-size: .68rem; letter-spacing: .1em;
+  text-transform: uppercase;
+  background: transparent; color: var(--ink-dim);
+  border: 1px solid var(--rule); padding: .3em .62em;
+  cursor: pointer;
+  transition: color .18s, border-color .18s, background .18s;
+}
+.tgl:hover { color: var(--ink); border-color: var(--rule-hi); }
+.tgl[aria-pressed="true"] { color: var(--bg); background: var(--ink); border-color: var(--ink); }
+
+/* ─── Hero ──────────────────────────────────────────────────────────────── */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: var(--gut);
+  align-items: end;
+  padding: clamp(2.4rem, 5vw, 6rem) var(--edge) clamp(1.6rem, 3vw, 3rem);
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+  overflow: hidden;
+}
+@media (max-width: 940px) { .hero { grid-template-columns: 1fr; } }
+
+.hero h1 {
+  font-size: var(--step-4);
+  letter-spacing: -.035em;
+  margin: 0;
+  position: relative;
+  z-index: 2;
+}
+.hero h1 .n {
+  display: block;
+  -webkit-text-stroke: 1px var(--ink);
+  color: transparent;
+  font-size: .32em;
+  letter-spacing: .3em;
+  margin-bottom: .5em;
+  -webkit-text-stroke-width: 1px;
+}
+.hero .lede {
+  font-size: var(--step-1);
+  line-height: 1.45;
+  max-width: 34ch;
+  margin-top: 1.1rem;
+  color: var(--ink-dim);
+}
+.hero .lede strong { color: var(--ink); font-weight: 600; }
+
+.hero-side {
+  border-left: 1px solid var(--rule);
+  padding-left: clamp(.8rem, 2vw, 1.8rem);
+  display: flex; flex-direction: column; gap: 1rem;
+}
+@media (max-width: 940px) {
+  .hero-side { border-left: 0; border-top: 1px solid var(--rule); padding: 1.2rem 0 0; }
+}
+
+.spec { display: grid; grid-template-columns: 5.6rem 1fr; gap: .2rem 1rem; }
+.spec dt { font-family: var(--f-mono); font-size: .7rem; letter-spacing: .1em;
+           text-transform: uppercase; color: var(--ink-mute); padding-top: .18em; }
+.spec dd { margin: 0; font-size: var(--step--1); }
+
+.actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .4rem; }
+.btn {
+  font-family: var(--f-mono); font-size: .78rem; letter-spacing: .12em;
+  text-transform: uppercase; text-decoration: none;
+  padding: .74em 1.25em; border: 1px solid var(--ink);
+  color: var(--ink); background: transparent; cursor: pointer;
+  transition: background .18s, color .18s, transform .18s;
+}
+.btn:hover { background: var(--ink); color: var(--bg); transform: translateY(-1px); }
+.btn.solid { background: var(--blood); border-color: var(--blood); color: #fff; }
+.btn.solid:hover { background: var(--blood-lift); border-color: var(--blood-lift); color: #fff; }
+
+/* The pulse SVG sits behind the headline */
+.pulse { position: absolute; right: -2%; bottom: -14%; z-index: 1;
+         width: min(46vw, 560px); opacity: .5; pointer-events: none; }
+@media (max-width: 940px) { .pulse { opacity: .26; right: -18%; } }
+@media (prefers-reduced-motion: reduce) { .pulse .beat { animation: none !important; } }
+.pulse .beat { transform-origin: center; animation: beat 1.55s ease-out infinite; }
+.pulse .beat.b2 { animation-delay: .26s; }
+@keyframes beat {
+  0%, 100% { transform: scale(1);   opacity: .85; }
+  22%      { transform: scale(1.5); opacity: .16; }
+  60%      { transform: scale(1);   opacity: .85; }
+}
+
+/* ─── Counters strip ────────────────────────────────────────────────────── */
+.counts {
+  display: flex; flex-wrap: wrap;
+  border-bottom: 1px solid var(--rule);
+}
+.count {
+  flex: 1 1 150px;
+  padding: clamp(1rem, 2.4vw, 1.9rem) var(--edge);
+  border-right: 1px solid var(--rule);
+}
+.count:last-child { border-right: 0; }
+.count b {
+  display: block; font-family: var(--f-display); font-weight: 600;
+  font-size: clamp(2rem, 4.2vw, 3.6rem); line-height: .9;
+  color: var(--warn);
+}
+.count span { font-family: var(--f-mono); font-size: .7rem; letter-spacing: .12em;
+              text-transform: uppercase; color: var(--ink-mute); }
+
+/* ─── Generic section shell ─────────────────────────────────────────────── */
+section { padding: clamp(2.6rem, 6vw, 6rem) var(--edge); border-bottom: 1px solid var(--rule); }
+.sec-head { display: flex; align-items: baseline; gap: 1.2rem; margin-bottom: clamp(1.4rem, 3vw, 2.6rem); }
+.sec-head .idx { font-family: var(--f-mono); font-size: .72rem; letter-spacing: .18em; color: var(--blood-lift); }
+html[data-theme="light"] .sec-head .idx { color: var(--blood); }
+.sec-head h2 { flex: 1; }
+.sec-head .note { font-family: var(--f-mono); font-size: .7rem; letter-spacing: .1em;
+                  color: var(--ink-mute); text-transform: uppercase; }
+
+/* ─── The loop ──────────────────────────────────────────────────────────── */
+.loop { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--rule); }
+@media (max-width: 860px) { .loop { grid-template-columns: 1fr; } }
+.loop > div { padding: clamp(1.1rem, 2.4vw, 2rem); }
+.loop > div + div { border-left: 1px solid var(--rule); }
+@media (max-width: 860px) { .loop > div + div { border-left: 0; border-top: 1px solid var(--rule); } }
+.loop .who { display: flex; align-items: center; gap: .7rem; margin-bottom: 1.1rem; }
+.loop .who h4 { margin: 0; }
+.loop .dot { width: 9px; height: 9px; flex: none; }
+.loop.k .dot { background: var(--blood); }
+.loop.s .dot { background: var(--moss); }
+.loop.k h4 { color: var(--blood-lift); }
+html[data-theme="light"] .loop.k h4 { color: var(--blood); }
+
+.steps { counter-reset: s; list-style: none; margin: 0; padding: 0; }
+.steps li {
+  counter-increment: s;
+  display: grid; grid-template-columns: 2.1rem 1fr; gap: .2rem .8rem;
+  padding: .62rem 0; border-top: 1px dashed var(--rule);
+  align-items: baseline;
+}
+.steps li:first-child { border-top: 0; }
+.steps li::before {
+  content: counter(s, decimal-leading-zero);
+  font-family: var(--f-mono); font-size: .72rem; color: var(--ink-mute);
+}
+.steps li b { font-weight: 600; }
+.steps li small { display: block; grid-column: 2; color: var(--ink-dim); font-size: var(--step--1); }
+
+/* ─── Feature rack — intentionally unequal columns ──────────────────────── */
+.rack {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+}
+.cell { background: var(--bg); padding: clamp(1rem, 2.2vw, 1.7rem); }
+.cell h4 { margin-bottom: .45rem; }
+.cell p { font-size: var(--step--1); color: var(--ink-dim); margin: 0 0 .7rem; }
+.cell ul { margin: 0; padding-left: 1.05rem; font-size: var(--step--1); color: var(--ink-dim); }
+.cell li { margin-bottom: .22rem; }
+.cell li::marker { color: var(--blood); }
+.w4 { grid-column: span 4; } .w5 { grid-column: span 5; }
+.w6 { grid-column: span 6; } .w7 { grid-column: span 7; }
+.w8 { grid-column: span 8; } .w12 { grid-column: span 12; }
+@media (max-width: 900px) { .cell { grid-column: span 12 !important; } }
+
+/* ─── Pipeline / terminal block ─────────────────────────────────────────── */
+.term {
+  background: var(--bg-alt); border: 1px solid var(--rule);
+  font-family: var(--f-mono); font-size: var(--step--1);
+  overflow: hidden; box-shadow: var(--shadow);
+}
+.term .head {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .5rem .8rem; border-bottom: 1px solid var(--rule);
+  color: var(--ink-mute); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase;
+}
+.term .head i { width: 8px; height: 8px; border: 1px solid var(--rule-hi); display: block; }
+.term pre { margin: 0; padding: 1rem 1.1rem; overflow-x: auto; line-height: 1.75; }
+.term .c { color: var(--ink-mute); }
+.term .g { color: var(--moss); }
+.term .y { color: var(--warn); }
+.term .r { color: var(--blood-lift); }
+html[data-theme="light"] .term .r { color: var(--blood); }
+
+.split { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: var(--gut); align-items: start; }
+@media (max-width: 940px) { .split { grid-template-columns: 1fr; } }
+
+/* ─── Realm list ────────────────────────────────────────────────────────── */
+.realms { display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.realm {
+  display: grid; grid-template-columns: 3.4rem minmax(0,1fr) auto;
+  gap: 1rem; align-items: baseline;
+  padding: .95rem 0; border-bottom: 1px solid var(--rule);
+  transition: background .2s;
+}
+.realm:hover { background: var(--bg-alt); }
+.realm .n { font-family: var(--f-mono); font-size: .74rem; color: var(--ink-mute); }
+.realm h4 { margin: 0; }
+.realm small { display: block; color: var(--ink-dim); font-size: var(--step--1);
+              font-family: var(--f-body); text-transform: none; letter-spacing: 0; line-height: 1.4; }
+.realm .swatch { display: flex; gap: 3px; }
+.realm .swatch i { width: 12px; height: 12px; display: block; border: 1px solid var(--rule); }
+
+/* ─── Run cards ─────────────────────────────────────────────────────────── */
+.runs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1px;
+        background: var(--rule); border: 1px solid var(--rule); }
+.run { background: var(--bg); padding: 1.3rem; display: flex; flex-direction: column; gap: .5rem; }
+.run .num { font-family: var(--f-mono); font-size: .7rem; letter-spacing: .16em; color: var(--blood-lift); }
+html[data-theme="light"] .run .num { color: var(--blood); }
+.run code { font-family: var(--f-mono); font-size: .78rem; background: var(--bg-alt);
+            border: 1px solid var(--rule); padding: .28em .5em; display: inline-block; margin: .1rem 0; }
+
+/* ─── Footer ────────────────────────────────────────────────────────────── */
+footer { padding: clamp(2rem, 4vw, 3.4rem) var(--edge) 3rem; }
+footer .legal { max-width: 74ch; color: var(--ink-dim); font-size: var(--step--1); }
+footer .meta { display: flex; flex-wrap: wrap; gap: 1.4rem; margin-top: 1.6rem;
+               font-family: var(--f-mono); font-size: .7rem; letter-spacing: .08em;
+               color: var(--ink-mute); text-transform: uppercase; }
+footer .meta a { text-decoration: none; border-bottom: 1px solid var(--rule);
+                 transition: color .18s, border-color .18s; }
+footer .meta a:hover { color: var(--ink); border-color: var(--blood); }
+
+/* ─── Reveal on scroll ──────────────────────────────────────────────────── */
+.rise { opacity: 0; transform: translateY(14px);
+        transition: opacity .55s cubic-bezier(.16,1,.3,1), transform .55s cubic-bezier(.16,1,.3,1); }
+.rise.in { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .rise { opacity: 1; transform: none; transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <span class="id">DBD//2D · REV 1.0.0</span>
+  <span class="tag" data-en="Asymmetric Horror · Godot 4" data-zh="非对称恐怖 · Godot 4">非对称恐怖 · Godot 4</span>
+  <span class="spacer"></span>
+  <nav>
+    <a href="#loop" data-en="Loop" data-zh="循环">循环</a>
+    <a href="#systems" data-en="Systems" data-zh="系统">系统</a>
+    <a href="#realms" data-en="Realms" data-zh="地图">地图</a>
+    <a href="#tech" data-en="Tech" data-zh="技术">技术</a>
+    <a href="#run" data-en="Run" data-zh="运行">运行</a>
+  </nav>
+  <div class="toggles">
+    <button class="tgl" id="lang" aria-pressed="false">EN</button>
+    <button class="tgl" id="theme" aria-pressed="false" data-en="Light" data-zh="浅色">浅色</button>
+  </div>
+</div>
+
+<header class="hero">
+  <div>
+    <span class="stamp" data-en="Fan tribute · Non-commercial" data-zh="粉丝致敬 · 非商业">粉丝致敬 · 非商业</span>
+    <h1 style="margin-top:1.1rem">
+      <span class="n">Top-down asymmetric horror</span>
+      2DDBD
+    </h1>
+    <p class="lede" data-en="One killer. Four survivors. Five generators. Two gates. Repair the machines and escape — or hang them all."
+       data-zh="一名杀手。四名逃生者。五台发电机。两扇大门。修好机器逃出去 —— 或者，把他们全挂上钩子。">
+      一名杀手。四名逃生者。五台发电机。两扇大门。修好机器逃出去 —— 或者，把他们全挂上钩子。
+    </p>
+    <div class="actions">
+      <a class="btn solid" href="#run" data-en="Download the build" data-zh="下载可执行版">下载可执行版</a>
+      <a class="btn" href="https://github.com/Developerprit/2DDBD" data-en="Source on GitHub" data-zh="GitHub 源码">GitHub 源码</a>
+      <a class="btn" href="README-zh.md" data-en="Read the docs" data-zh="阅读文档">阅读文档</a>
+    </div>
+  </div>
+
+  <div class="hero-side">
+    <dl class="spec">
+      <dt data-en="Engine"   data-zh="引擎">引擎</dt>   <dd>Godot 4.5.1 · GDScript</dd>
+      <dt data-en="Art"      data-zh="美术">美术</dt>   <dd data-en="100% procedural SVG / PNG" data-zh="100% 程序化生成 SVG / PNG">100% 程序化生成 SVG / PNG</dd>
+      <dt data-en="Audio"    data-zh="音效">音效</dt>   <dd data-en="51 synthesised sounds" data-zh="51 个合成音效">51 个合成音效</dd>
+      <dt data-en="Modes"    data-zh="模式">模式</dt>   <dd data-en="Solo (AI) · LAN · server-less P2P" data-zh="单机（AI）· 局域网 · 无服务器 P2P">单机（AI）· 局域网 · 无服务器 P2P</dd>
+      <dt data-en="License"  data-zh="许可">许可</dt>   <dd>Available License</dd>
+    </dl>
+  </div>
+
+  <svg class="pulse" viewBox="0 0 400 400" aria-hidden="true">
+    <g fill="none" stroke="var(--blood)" stroke-width="1.4">
+      <circle class="beat"    cx="200" cy="200" r="52"/>
+      <circle class="beat b2" cx="200" cy="200" r="52"/>
+      <circle cx="200" cy="200" r="118" stroke-dasharray="3 7" stroke-width="1"/>
+      <circle cx="200" cy="200" r="186" stroke-dasharray="2 11" stroke-width="1"/>
+    </g>
+    <g fill="var(--blood)">
+      <rect x="196" y="126" width="8" height="8"/>
+      <rect x="196" y="266" width="8" height="8"/>
+      <rect x="126" y="196" width="8" height="8"/>
+      <rect x="266" y="196" width="8" height="8"/>
+    </g>
+  </svg>
+</header>
+
+<div class="counts">
+  <div class="count"><b>1<span style="color:var(--ink-mute)">v</span>4</b><span data-en="Killer vs Survivors" data-zh="杀手对逃生者">杀手对逃生者</span></div>
+  <div class="count"><b>5</b><span data-en="Generators to power" data-zh="台发电机通电">台发电机通电</span></div>
+  <div class="count"><b>2</b><span data-en="Exit gates" data-zh="扇出口大门">扇出口大门</span></div>
+  <div class="count"><b>32<small style="font-size:.4em">m</small></b><span data-en="Terror radius" data-zh="恐惧半径">恐惧半径</span></div>
+  <div class="count"><b>0</b><span data-en="Imported assets" data-zh="个外部素材">个外部素材</span></div>
+</div>
+
+<section id="loop">
+  <div class="sec-head rise">
+    <span class="idx">01</span>
+    <h2 data-en="The trial" data-zh="一场试炼">一场试炼</h2>
+    <span class="note" data-en="Two teams, opposite win conditions" data-zh="两个阵营，相反的胜利条件">两个阵营，相反的胜利条件</span>
+  </div>
+
+  <div class="loop s rise">
+    <div>
+      <div class="who"><i class="dot"></i><h4 data-en="Survivor" data-zh="逃生者">逃生者</h4></div>
+      <ol class="steps">
+        <li><b data-en="Repair five generators" data-zh="修复五台发电机">修复五台发电机</b>
+            <small data-en="Eighty seconds of hands-on work each. Extra hands help, but with diminishing returns." data-zh="单人一台 80 秒。多人合作更快，但有 15% 的效率惩罚。">单人一台 80 秒。多人合作更快，但有 15% 的效率惩罚。</small></li>
+        <li><b data-en="Hold the skill check" data-zh="通过技能检定">通过技能检定</b>
+            <small data-en="A needle sweeps the dial. Hit the gold band for a perfect, grey for a good — a miss explodes the generator and gives away your position." data-zh="指针扫过圆环。命中金色区域是完美，灰色是不错；失误会让发电机爆炸并暴露你的位置。">指针扫过圆环。命中金色区域是完美，灰色是不错；失误会让发电机爆炸并暴露你的位置。</small></li>
+        <li><b data-en="Open an exit gate" data-zh="开启出口大门">开启出口大门</b>
+            <small data-en="Twenty seconds on the lever, once the last generator is running." data-zh="最后一台发电机通电后，拉下闸门需要 20 秒。">最后一台发电机通电后，拉下闸门需要 20 秒。</small></li>
+        <li><b data-en="Or find the hatch" data-zh="或者找到地窖">或者找到地窖</b>
+            <small data-en="When you are the last one standing, the hatch opens — and is an instant escape." data-zh="当你成为最后一个活人时，地窖开启，跳进去立刻逃脱。">当你成为最后一个活人时，地窖开启，跳进去立刻逃脱。</small></li>
+      </ol>
+    </div>
+    <div>
+      <div class="who"><i class="dot"></i><h4 data-en="Killer · The Trapper" data-zh="杀手 · 陷阱杀手">杀手 · 陷阱杀手</h4></div>
+      <ol class="steps">
+        <li><b data-en="Down them" data-zh="击倒他们">击倒他们</b>
+            <small data-en="Healthy to injured, injured to downed. A lunge closes the last few metres." data-zh="健康到受伤，受伤到倒地。蓄力突进能补上最后几米的距离。">健康到受伤，受伤到倒地。蓄力突进能补上最后几米的距离。</small></li>
+        <li><b data-en="Arm the ground" data-zh="在地面布下陷阱">在地面布下陷阱</b>
+            <small data-en="Bear traps hold a survivor in place until they gamble on a 16% escape." data-zh="捕兽夹会把逃生者定住，直到他们赌上那 16% 的挣脱概率。">捕兽夹会把逃生者定住，直到他们赌上那 16% 的挣脱概率。</small></li>
+        <li><b data-en="Carry them to a hook" data-zh="扛到钩子旁">扛到钩子旁</b>
+            <small data-en="Carrying slows you to 3.68 m/s. They can still wiggle free." data-zh="扛人时移速降到 3.68 m/s，他们仍然可以扭动挣脱。">扛人时移速降到 3.68 m/s，他们仍然可以扭动挣脱。</small></li>
+        <li><b data-en="Sacrifice" data-zh="献祭">献祭</b>
+            <small data-en="Three hook stages. Bloodlust raises your speed at 15, 25 and 35 seconds of chase." data-zh="挂钩三阶段。追击到 15 / 25 / 35 秒会获得三档杀戮欲望加速。">挂钩三阶段。追击到 15 / 25 / 35 秒会获得三档杀戮欲望加速。</small></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section id="systems">
+  <div class="sec-head rise">
+    <span class="idx">02</span>
+    <h2 data-en="Systems" data-zh="系统">系统</h2>
+    <span class="note" data-en="Everything below is in the shipping build" data-zh="以下全部已实装">以下全部已实装</span>
+  </div>
+
+  <div class="rack rise">
+    <div class="cell w5">
+      <h4 data-en="Chase &amp; counterplay" data-zh="追逐与博弈">追逐与博弈</h4>
+      <p data-en="The numbers come straight from the original, so the loops behave the way you remember." data-zh="数值直接取自原作，所以板窗绕圈的节奏和你记忆中的一样。">数值直接取自原作，所以板窗绕圈的节奏和你记忆中的一样。</p>
+      <ul>
+        <li data-en="Survivor 4.0 m/s · Killer 4.6 m/s · Carry 3.68 m/s" data-zh="逃生者 4.0 m/s · 杀手 4.6 m/s · 扛人 3.68 m/s">逃生者 4.0 m/s · 杀手 4.6 m/s · 扛人 3.68 m/s</li>
+        <li data-en="Attack recovery 3 s, drop 40% of your speed" data-zh="攻击后摇 3 秒，移速下降 40%">攻击后摇 3 秒，移速下降 40%</li>
+        <li data-en="Pallets stun for 2.5 s; breaking one takes 2.6 s" data-zh="木板击晕 2.5 秒；踩碎木板需要 2.6 秒">木板击晕 2.5 秒；踩碎木板需要 2.6 秒</li>
+        <li data-en="Window vault: 0.5 s survivor, 1.5 s killer" data-zh="翻窗：逃生者 0.5 秒，杀手 1.5 秒">翻窗：逃生者 0.5 秒，杀手 1.5 秒</li>
+      </ul>
+    </div>
+    <div class="cell w7">
+      <h4 data-en="Health, hooks and hope" data-zh="血量、钩子与希望">血量、钩子与希望</h4>
+      <p data-en="Four health states, a crawl, a struggle phase and three hook stages — with self-unhook sitting at the original's 4%." data-zh="四级血量、爬行、挣扎阶段，以及挂钩三阶段 —— 自救概率忠于原作的 4%。">四级血量、爬行、挣扎阶段，以及挂钩三阶段 —— 自救概率忠于原作的 4%。</p>
+      <ul>
+        <li data-en="Healthy → Injured → Downed → Dying, with crawl and revive" data-zh="健康 → 受伤 → 倒地 → 濒死，可爬行与被扶起">健康 → 受伤 → 倒地 → 濒死，可爬行与被扶起</li>
+        <li data-en="Hook stage one lasts 60 s; stage two is the struggle phase" data-zh="挂钩一阶段 60 秒；二阶段进入挣扎">挂钩一阶段 60 秒；二阶段进入挣扎</li>
+        <li data-en="Teammates can unhook, revive and heal you" data-zh="队友可以解救、扶起并治疗你">队友可以解救、扶起并治疗你</li>
+        <li data-en="Running leaves scratch marks; bleeding leaves blood" data-zh="奔跑会留下爪痕；受伤会留下血迹">奔跑会留下爪痕；受伤会留下血迹</li>
+      </ul>
+    </div>
+    <div class="cell w6">
+      <h4 data-en="Loadout" data-zh="配装">配装</h4>
+      <p data-en="Four survivors with their own palettes and signature perks, one killer with a power and add-ons." data-zh="四名逃生者各有配色与专属技能，一名杀手拥有力量与配件。">四名逃生者各有配色与专属技能，一名杀手拥有力量与配件。</p>
+      <ul>
+        <li data-en="12 survivor perks, pick four" data-zh="12 个逃生者技能，任选四个">12 个逃生者技能，任选四个</li>
+        <li data-en="6 killer perks · 6 bear-trap add-ons" data-zh="6 个杀手技能 · 6 个捕兽夹配件">6 个杀手技能 · 6 个捕兽夹配件</li>
+        <li data-en="Med-kit / flashlight / toolbox / map, 3 add-ons each" data-zh="医疗包 / 手电筒 / 工具箱 / 地图，各 3 个配件">医疗包 / 手电筒 / 工具箱 / 地图，各 3 个配件</li>
+      </ul>
+    </div>
+    <div class="cell w6">
+      <h4 data-en="Feel and feedback" data-zh="手感与反馈">手感与反馈</h4>
+      <p data-en="The tension is carried by light, sound and camera, not by a number on screen." data-zh="紧张感由光线、声音与镜头承载，而不是屏幕上的一串数字。">紧张感由光线、声音与镜头承载，而不是屏幕上的一串数字。</p>
+      <ul>
+        <li data-en="Dynamic heartbeat that tracks the terror radius" data-zh="随恐惧半径实时变化的心跳">随恐惧半径实时变化的心跳</li>
+        <li data-en="Walls occlude light as well as movement" data-zh="墙体同时遮挡光线与移动">墙体同时遮挡光线与移动</li>
+        <li data-en="Camera pulls back slightly during a chase" data-zh="追逐时镜头轻微拉远">追逐时镜头轻微拉远</li>
+        <li data-en="Bloodlust tier-up, pallet stun, hit and sacrifice stingers" data-zh="杀戮欲望升级、板砸、命中与献祭音效">杀戮欲望升级、板砸、命中与献祭音效</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="realms">
+  <div class="sec-head rise">
+    <span class="idx">03</span>
+    <h2 data-en="Realms" data-zh="地图">地图</h2>
+    <span class="note" data-en="Seed-driven, fully reproducible" data-zh="种子驱动，完全可复现">种子驱动，完全可复现</span>
+  </div>
+
+  <div class="realms rise">
+    <div class="realm">
+      <span class="n">R-01</span>
+      <div><h4 data-en="Auto Haven Wreckers" data-zh="汽车坟场">汽车坟场</h4>
+        <small data-en="Wrecked cars as line-of-sight blockers; loose pallets between hulls." data-zh="废车作为视线的遮挡；车体之间散落着木板。">废车作为视线的遮挡；车体之间散落着木板。</small></div>
+      <span class="swatch"><i style="background:#2b2b24"></i><i style="background:#4a4636"></i><i style="background:#33332a"></i></span>
+    </div>
+    <div class="realm">
+      <span class="n">R-02</span>
+      <div><h4 data-en="MacMillan Estate" data-zh="麦克米伦庄园">麦克米伦庄园</h4>
+        <small data-en="Brick compounds with double doorways — the tightest loops in the game." data-zh="砖砌建筑配双向门洞 —— 全游戏最紧凑的绕圈空间。">砖砌建筑配双向门洞 —— 全游戏最紧凑的绕圈空间。</small></div>
+      <span class="swatch"><i style="background:#2a2820"></i><i style="background:#5a4a30"></i><i style="background:#343026"></i></span>
+    </div>
+    <div class="realm">
+      <span class="n">R-03</span>
+      <div><h4 data-en="Coldwind Farm" data-zh="冷风农场">冷风农场</h4>
+        <small data-en="Open crop fields with sparse cover — the killer sees you from far away." data-zh="开阔的农田与稀疏掩体 —— 杀手能从很远的地方看见你。">开阔的农田与稀疏掩体 —— 杀手能从很远的地方看见你。</small></div>
+      <span class="swatch"><i style="background:#24281d"></i><i style="background:#6a5a2e"></i><i style="background:#3f4a2a"></i></span>
+    </div>
+    <div class="realm">
+      <span class="n">R-04</span>
+      <div><h4 data-en="Yamaoka Estate" data-zh="山冈宅邸">山冈宅邸</h4>
+        <small data-en="Dense wooden interiors; the pallet density here is the highest." data-zh="密集的木质内构；这里的木板密度最高。">密集的木质内构；这里的木板密度最高。</small></div>
+      <span class="swatch"><i style="background:#221f26"></i><i style="background:#5a3a44"></i><i style="background:#2f2a33"></i></span>
+    </div>
+    <div class="realm">
+      <span class="n">R-05</span>
+      <div><h4 data-en="Ormond Lake Mine" data-zh="奥蒙德矿井">奥蒙德矿井</h4>
+        <small data-en="Rock walls with long sightlines down the tunnels." data-zh="岩壁构成隧道，视线能沿隧道拉出很长。">岩壁构成隧道，视线能沿隧道拉出很长。</small></div>
+      <span class="swatch"><i style="background:#26292e"></i><i style="background:#5d6470"></i><i style="background:#333a42"></i></span>
+    </div>
+  </div>
+</section>
+
+<section id="tech">
+  <div class="sec-head rise">
+    <span class="idx">04</span>
+    <h2 data-en="Under the hood" data-zh="技术实现">技术实现</h2>
+    <span class="note" data-en="Reproducible from source" data-zh="可从源码完整复现">可从源码完整复现</span>
+  </div>
+
+  <div class="split rise">
+    <div>
+      <h3 data-en="Every asset is code" data-zh="每一个素材都是代码">每一个素材都是代码</h3>
+      <p data-en="There is not one imported asset in the repository. Sprites are generated as vector SVG and shipped as 1:1 PNG so the rasteriser can never soften a pixel edge. Sounds are synthesised from oscillators, noise and envelopes — about seventy-five seconds of audio from two hundred lines of Python."
+         data-zh="仓库里没有一个外部素材。像素画以矢量 SVG 生成、以 1:1 PNG 出货，光栅化器永远不会让像素边缘发虚。音效由振荡器、噪声与包络合成 —— 约 200 行 Python 产出 75 秒音频。">
+        仓库里没有一个外部素材。像素画以矢量 SVG 生成、以 1:1 PNG 出货，光栅化器永远不会让像素边缘发虚。音效由振荡器、噪声与包络合成 —— 约 200 行 Python 产出 75 秒音频。
+      </p>
+      <p class="mono" style="color:var(--ink-mute)"
+         data-en="No third-party Python packages. PNG is hand-encoded with zlib."
+         data-zh="不依赖任何第三方 Python 包。PNG 由 zlib 手工编码。">不依赖任何第三方 Python 包。PNG 由 zlib 手工编码。</p>
+    </div>
+
+    <div class="term">
+      <div class="head"><i></i><i></i><i></i><span>tools / regenerate all</span></div>
+<pre><span class="c">$</span> python tools/gen_sprites.py
+<span class="g">   survivor_dwight  96x500</span>
+<span class="g">   survivor_meg     96x500</span>
+<span class="g">   survivor_claudette 96x500</span>
+<span class="g">   survivor_jake    96x500</span>
+<span class="g">   killer_trapper   144x560</span>
+<span class="g">   generator 128x40 · hook 16x28</span>
+<span class="g">   pallet 32x14 · hatch 24x24 ...</span>
+
+<span class="c">$</span> python tools/gen_audio.py
+<span class="y">   heartbeat        0.42 s</span>
+<span class="y">   gen_loop         0.75 s  [loop]</span>
+<span class="y">   skillcheck_great 0.31 s</span>
+<span class="y">   sacrifice        2.20 s</span>
+<span class="c">   ... 51 files, 74.8 s of audio</span>
+
+<span class="c">$</span> godot --headless --export-release \
+      <span class="r">"Windows Desktop"</span> build/2DDBD.exe
+<span class="g">   [ DONE ] savepack</span></pre>
+    </div>
+  </div>
+
+  <div class="split rise" style="margin-top:var(--gut)">
+    <div>
+      <h4 data-en="State machines, not spaghetti" data-zh="状态机，而非面条代码">状态机，而非面条代码</h4>
+      <p data-en="Eleven survivor states and eight killer states drive every behaviour through one small reusable machine. Attack, carry, hook, vault, break, stun, repair, heal, unhook — each is a separate object with its own enter / exit / tick contract."
+         data-zh="逃生者 11 个状态、杀手 8 个状态，全部经由一个可复用的状态机驱动。攻击、扛人、挂钩、翻越、踩板、眩晕、修理、治疗、解救 —— 每一个都是独立对象，拥有自己的 enter / exit / tick 契约。">
+        逃生者 11 个状态、杀手 8 个状态，全部经由一个可复用的状态机驱动。攻击、扛人、挂钩、翻越、踩板、眩晕、修理、治疗、解救 —— 每一个都是独立对象，拥有自己的 enter / exit / tick 契约。
+      </p>
+    </div>
+    <div>
+      <h4 data-en="Bots that finish the trial" data-zh="能打完一整局的 AI">能打完一整局的 AI</h4>
+      <p data-en="A* grid pathfinding over the same tile grid the level generator produces, plus a decision layer: repair, flee, unhook, revive, patrol, chase, carry. A stuck watchdog measures net drift and escalates to a reposition rather than letting a bot grind a wall forever."
+         data-zh="在关卡生成器产出的同一套瓦片网格上跑 A* 寻路，外加一层决策：修理、逃跑、解救、扶起、巡逻、追逐、扛人。卡住看门狗会测量净位移，必要时升级为重定位，而不是让 bot 永远磨墙。">
+        在关卡生成器产出的同一套瓦片网格上跑 A* 寻路，外加一层决策：修理、逃跑、解救、扶起、巡逻、追逐、扛人。卡住看门狗会测量净位移，必要时升级为重定位，而不是让 bot 永远磨墙。
+      </p>
+    </div>
+  </div>
+
+  <div class="split rise" style="margin-top:var(--gut)">
+    <div>
+      <h4 data-en="Networking without a server" data-zh="不需要服务器的联机">不需要服务器的联机</h4>
+      <p data-en="Three backends share one set of actor logic: offline with bots, ENet for LAN play, and WebRTC peer-to-peer where two players paste one block of SDP text at each other to open a direct data channel. No signalling server required."
+         data-zh="三层后端共用同一套角色逻辑：单机配 AI、ENet 局域网，以及 WebRTC 点对点 —— 两名玩家互相粘贴一段 SDP 文本即可建立直连数据通道，不需要任何信令服务器。">
+        三层后端共用同一套角色逻辑：单机配 AI、ENet 局域网，以及 WebRTC 点对点 —— 两名玩家互相粘贴一段 SDP 文本即可建立直连数据通道，不需要任何信令服务器。
+      </p>
+    </div>
+    <div>
+      <h4 data-en="Scale that stays honest" data-zh="诚实的尺度">诚实的尺度</h4>
+      <p data-en="One tile is sixteen world pixels and one metre. That single decision is why the original's metre-per-second numbers appear verbatim in the code, and why a sixteen-pixel-wide corridor feels exactly as tight as it looks."
+         data-zh="一个瓦片等于 16 世界像素，也等于一米。就是这一个决定，让原作的米/秒数值可以原样写进代码，也正是一条 16 像素宽的走廊看起来有多挤、走起来就有多挤。">
+        一个瓦片等于 16 世界像素，也等于一米。就是这一个决定，让原作的米/秒数值可以原样写进代码，也正是一条 16 像素宽的走廊看起来有多挤、走起来就有多挤。
+      </p>
+    </div>
+  </div>
+</section>
+
+<section id="run">
+  <div class="sec-head rise">
+    <span class="idx">05</span>
+    <h2 data-en="Run it" data-zh="运行">运行</h2>
+    <span class="note" data-en="Three ways in" data-zh="三种方式">三种方式</span>
+  </div>
+
+  <div class="runs rise">
+    <div class="run">
+      <span class="num">WAY 01</span>
+      <h4 data-en="Play the build" data-zh="直接开玩">直接开玩</h4>
+      <p data-en="A single self-contained executable. No installer, no engine, no runtime to fetch." data-zh="单个自包含可执行文件。无需安装、无需引擎、无需下载运行时。">单个自包含可执行文件。无需安装、无需引擎、无需下载运行时。</p>
+      <code>build/2DDBD.exe</code>
+      <p class="mono" style="color:var(--ink-mute);margin:.6rem 0 0">Windows x86_64 · ~93 MB</p>
+    </div>
+    <div class="run">
+      <span class="num">WAY 02</span>
+      <h4 data-en="Open the project" data-zh="打开工程">打开工程</h4>
+      <p data-en="Requires Godot 4.5.x. Wired up and ready to edit, with every input mapping already bound." data-zh="需要 Godot 4.5.x。工程已接好，全部输入映射都已绑定，打开即可编辑。">需要 Godot 4.5.x。工程已接好，全部输入映射都已绑定，打开即可编辑。</p>
+      <code>project.godot</code>
+      <p class="mono" style="color:var(--ink-mute);margin:.6rem 0 0" data-en="Godot 4.5.1 stable" data-zh="Godot 4.5.1 stable">Godot 4.5.1 stable</p>
+    </div>
+    <div class="run">
+      <span class="num">WAY 03</span>
+      <h4 data-en="Rebuild the assets" data-zh="重建素材">重建素材</h4>
+      <p data-en="Standard library only. Deterministic — the same script version always yields byte-identical output." data-zh="仅用标准库。确定性输出 —— 同一版本的脚本永远产出逐字节相同的文件。">仅用标准库。确定性输出 —— 同一版本的脚本永远产出逐字节相同的文件。</p>
+      <code>python tools/gen_sprites.py</code>
+      <code>python tools/gen_audio.py</code>
+    </div>
+  </div>
+
+  <div class="term rise" style="margin-top:var(--gut)">
+    <div class="head"><i></i><i></i><i></i><span data-en="Controls" data-zh="操作">操作</span></div>
+<pre><span class="y">SURVIVOR</span>   WASD move · Shift walk · Ctrl crouch · Space interact &amp; skill check
+           F use item · Tab minimap · Esc pause
+<span class="r">KILLER</span>     WASD move · LMB swing · RMB place / reclaim trap
+           Space pick up &amp; hook · Tab minimap · Esc pause</pre>
+  </div>
+</section>
+
+<footer>
+  <span class="stamp" data-en="Non-commercial fan tribute" data-zh="非商业粉丝致敬">非商业粉丝致敬</span>
+  <p class="legal" style="margin-top:1.2rem"
+     data-en="2DDBD is an unofficial, non-commercial tribute and technical study. Dead by Daylight and its characters, realms and marks are the property of Behaviour Interactive Inc. No asset file from the original game is included in this repository — every graphic is produced by tools/gen_sprites.py and every sound by tools/gen_audio.py, both included and reproducible from source."
+     data-zh="2DDBD 是非官方、非商业的致敬与技术学习作品。《Dead by Daylight》及其角色、地图与商标归 Behaviour Interactive Inc. 所有。本仓库不包含原作的任何素材文件 —— 全部图形由 tools/gen_sprites.py 生成、全部音效由 tools/gen_audio.py 合成，两个脚本都在仓库内，可从源码完整复现。">
+     2DDBD 是非官方、非商业的致敬与技术学习作品。《Dead by Daylight》及其角色、地图与商标归 Behaviour Interactive Inc. 所有。本仓库不包含原作的任何素材文件 —— 全部图形由 tools/gen_sprites.py 生成、全部音效由 tools/gen_audio.py 合成，两个脚本都在仓库内，可从源码完整复现。
+  </p>
+  <div class="meta">
+    <a href="README-zh.md" data-en="中文说明" data-zh="中文说明">中文说明</a>
+    <a href="README.md">README (EN)</a>
+    <a href="Planning/Planning.md" data-en="Planning" data-zh="规划书">规划书</a>
+    <a href="LICENSE">Available License</a>
+    <a href="https://github.com/Developerprit/2DDBD">GitHub</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.documentElement;
+
+  /* ---- theme: dark by default, remembers the choice ---- */
+  var savedTheme = null;
+  try { savedTheme = localStorage.getItem("dbd.theme"); } catch (e) {}
+  if (savedTheme === "light") root.setAttribute("data-theme", "light");
+
+  var themeBtn = document.getElementById("theme");
+  function paintThemeBtn() {
+    var light = root.getAttribute("data-theme") === "light";
+    themeBtn.setAttribute("aria-pressed", light ? "true" : "false");
+    // The button advertises the mode it will switch TO.
+    themeBtn.textContent = light
+      ? (root.lang === "en" ? "Dark" : "深色")
+      : (root.lang === "en" ? "Light" : "浅色");
+  }
+
+  themeBtn.addEventListener("click", function () {
+    var next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("dbd.theme", next); } catch (e) {}
+    paintThemeBtn();
+  });
+
+  /* ---- bilingual: every tagged node carries both strings ---- */
+  var savedLang = null;
+  try { savedLang = localStorage.getItem("dbd.lang"); } catch (e) {}
+  var lang = savedLang === "en" ? "en" : "zh";
+
+  var langBtn = document.getElementById("lang");
+  function applyLang() {
+    root.lang = lang === "en" ? "en" : "zh";
+    var nodes = document.querySelectorAll("[data-en][data-zh]");
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      n.textContent = lang === "en" ? n.getAttribute("data-en") : n.getAttribute("data-zh");
+    }
+    langBtn.textContent = lang === "en" ? "中文" : "EN";
+    langBtn.setAttribute("aria-pressed", lang === "en" ? "true" : "false");
+    paintThemeBtn();
+  }
+
+  langBtn.addEventListener("click", function () {
+    lang = lang === "en" ? "zh" : "en";
+    try { localStorage.setItem("dbd.lang", lang); } catch (e) {}
+    applyLang();
+  });
+
+  /* ---- reveal on scroll, withheld until the observer is ready ---- */
+  var riseNodes = document.querySelectorAll(".rise");
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { en.target.classList.add("in"); io.unobserve(en.target); }
+      });
+    }, { rootMargin: "0px 0px -12% 0px", threshold: 0.04 });
+    for (var j = 0; j < riseNodes.length; j++) io.observe(riseNodes[j]);
+  } else {
+    for (var k = 0; k < riseNodes.length; k++) riseNodes[k].classList.add("in");
+  }
+
+  applyLang();
+  paintThemeBtn();
+})();
+</script>
+</body>
+</html>

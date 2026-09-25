@@ -1,0 +1,933 @@
+{
+  "characters": [
+    {
+      "name": "dwight",
+      "frame_w": 16,
+      "frame_h": 22,
+      "rows": [
+        {
+          "anim": "idle_down",
+          "frames": 2,
+          "row": 0,
+          "facing": "down"
+        },
+        {
+          "anim": "idle_up",
+          "frames": 2,
+          "row": 1,
+          "facing": "up"
+        },
+        {
+          "anim": "idle_side",
+          "frames": 2,
+          "row": 2,
+          "facing": "side"
+        },
+        {
+          "anim": "walk_down",
+          "frames": 4,
+          "row": 3,
+          "facing": "down"
+        },
+        {
+          "anim": "walk_up",
+          "frames": 4,
+          "row": 4,
+          "facing": "up"
+        },
+        {
+          "anim": "walk_side",
+          "frames": 4,
+          "row": 5,
+          "facing": "side"
+        },
+        {
+          "anim": "run_down",
+          "frames": 6,
+          "row": 6,
+          "facing": "down"
+        },
+        {
+          "anim": "run_up",
+          "frames": 6,
+          "row": 7,
+          "facing": "up"
+        },
+        {
+          "anim": "run_side",
+          "frames": 6,
+          "row": 8,
+          "facing": "side"
+        },
+        {
+          "anim": "crouch_down",
+          "frames": 2,
+          "row": 9,
+          "facing": "down"
+        },
+        {
+          "anim": "crouch_up",
+          "frames": 2,
+          "row": 10,
+          "facing": "up"
+        },
+        {
+          "anim": "crouch_side",
+          "frames": 2,
+          "row": 11,
+          "facing": "side"
+        },
+        {
+          "anim": "crouchwalk_down",
+          "frames": 4,
+          "row": 12,
+          "facing": "down"
+        },
+        {
+          "anim": "crouchwalk_up",
+          "frames": 4,
+          "row": 13,
+          "facing": "up"
+        },
+        {
+          "anim": "crouchwalk_side",
+          "frames": 4,
+          "row": 14,
+          "facing": "side"
+        },
+        {
+          "anim": "vault_down",
+          "frames": 4,
+          "row": 15,
+          "facing": "down"
+        },
+        {
+          "anim": "vault_up",
+          "frames": 4,
+          "row": 16,
+          "facing": "up"
+        },
+        {
+          "anim": "vault_side",
+          "frames": 4,
+          "row": 17,
+          "facing": "side"
+        },
+        {
+          "anim": "repair",
+          "frames": 2,
+          "row": 18,
+          "facing": "down"
+        },
+        {
+          "anim": "heal",
+          "frames": 2,
+          "row": 19,
+          "facing": "down"
+        },
+        {
+          "anim": "downed",
+          "frames": 2,
+          "row": 20,
+          "facing": "side"
+        },
+        {
+          "anim": "hooked",
+          "frames": 2,
+          "row": 21,
+          "facing": "down"
+        },
+        {
+          "anim": "struggle",
+          "frames": 2,
+          "row": 22,
+          "facing": "down"
+        },
+        {
+          "anim": "carried",
+          "frames": 2,
+          "row": 23,
+          "facing": "side"
+        },
+        {
+          "anim": "dead",
+          "frames": 2,
+          "row": 24,
+          "facing": "down"
+        }
+      ],
+      "palette": {
+        "skin": "#e8b98c",
+        "hair": "#5b4636",
+        "top": "#7a6a4f",
+        "pants": "#3f4a5c",
+        "accent": "#d9c27a"
+      }
+    },
+    {
+      "name": "meg",
+      "frame_w": 16,
+      "frame_h": 22,
+      "rows": [
+        {
+          "anim": "idle_down",
+          "frames": 2,
+          "row": 0,
+          "facing": "down"
+        },
+        {
+          "anim": "idle_up",
+          "frames": 2,
+          "row": 1,
+          "facing": "up"
+        },
+        {
+          "anim": "idle_side",
+          "frames": 2,
+          "row": 2,
+          "facing": "side"
+        },
+        {
+          "anim": "walk_down",
+          "frames": 4,
+          "row": 3,
+          "facing": "down"
+        },
+        {
+          "anim": "walk_up",
+          "frames": 4,
+          "row": 4,
+          "facing": "up"
+        },
+        {
+          "anim": "walk_side",
+          "frames": 4,
+          "row": 5,
+          "facing": "side"
+        },
+        {
+          "anim": "run_down",
+          "frames": 6,
+          "row": 6,
+          "facing": "down"
+        },
+        {
+          "anim": "run_up",
+          "frames": 6,
+          "row": 7,
+          "facing": "up"
+        },
+        {
+          "anim": "run_side",
+          "frames": 6,
+          "row": 8,
+          "facing": "side"
+        },
+        {
+          "anim": "crouch_down",
+          "frames": 2,
+          "row": 9,
+          "facing": "down"
+        },
+        {
+          "anim": "crouch_up",
+          "frames": 2,
+          "row": 10,
+          "facing": "up"
+        },
+        {
+          "anim": "crouch_side",
+          "frames": 2,
+          "row": 11,
+          "facing": "side"
+        },
+        {
+          "anim": "crouchwalk_down",
+          "frames": 4,
+          "row": 12,
+          "facing": "down"
+        },
+        {
+          "anim": "crouchwalk_up",
+          "frames": 4,
+          "row": 13,
+          "facing": "up"
+        },
+        {
+          "anim": "crouchwalk_side",
+          "frames": 4,
+          "row": 14,
+          "facing": "side"
+        },
+        {
+          "anim": "vault_down",
+          "frames": 4,
+          "row": 15,
+          "facing": "down"
+        },
+        {
+          "anim": "vault_up",
+          "frames": 4,
+          "row": 16,
+          "facing": "up"
+        },
+        {
+          "anim": "vault_side",
+          "frames": 4,
+          "row": 17,
+          "facing": "side"
+        },
+        {
+          "anim": "repair",
+          "frames": 2,
+          "row": 18,
+          "facing": "down"
+        },
+        {
+          "anim": "heal",
+          "frames": 2,
+          "row": 19,
+          "facing": "down"
+        },
+        {
+          "anim": "downed",
+          "frames": 2,
+          "row": 20,
+          "facing": "side"
+        },
+        {
+          "anim": "hooked",
+          "frames": 2,
+          "row": 21,
+          "facing": "down"
+        },
+        {
+          "anim": "struggle",
+          "frames": 2,
+          "row": 22,
+          "facing": "down"
+        },
+        {
+          "anim": "carried",
+          "frames": 2,
+          "row": 23,
+          "facing": "side"
+        },
+        {
+          "anim": "dead",
+          "frames": 2,
+          "row": 24,
+          "facing": "down"
+        }
+      ],
+      "palette": {
+        "skin": "#eec49a",
+        "hair": "#d1622c",
+        "top": "#c8452f",
+        "pants": "#2f3742",
+        "accent": "#f0e0c0"
+      }
+    },
+    {
+      "name": "claudette",
+      "frame_w": 16,
+      "frame_h": 22,
+      "rows": [
+        {
+          "anim": "idle_down",
+          "frames": 2,
+          "row": 0,
+          "facing": "down"
+        },
+        {
+          "anim": "idle_up",
+          "frames": 2,
+          "row": 1,
+          "facing": "up"
+        },
+        {
+          "anim": "idle_side",
+          "frames": 2,
+          "row": 2,
+          "facing": "side"
+        },
+        {
+          "anim": "walk_down",
+          "frames": 4,
+          "row": 3,
+          "facing": "down"
+        },
+        {
+          "anim": "walk_up",
+          "frames": 4,
+          "row": 4,
+          "facing": "up"
+        },
+        {
+          "anim": "walk_side",
+          "frames": 4,
+          "row": 5,
+          "facing": "side"
+        },
+        {
+          "anim": "run_down",
+          "frames": 6,
+          "row": 6,
+          "facing": "down"
+        },
+        {
+          "anim": "run_up",
+          "frames": 6,
+          "row": 7,
+          "facing": "up"
+        },
+        {
+          "anim": "run_side",
+          "frames": 6,
+          "row": 8,
+          "facing": "side"
+        },
+        {
+          "anim": "crouch_down",
+          "frames": 2,
+          "row": 9,
+          "facing": "down"
+        },
+        {
+          "anim": "crouch_up",
+          "frames": 2,
+          "row": 10,
+          "facing": "up"
+        },
+        {
+          "anim": "crouch_side",
+          "frames": 2,
+          "row": 11,
+          "facing": "side"
+        },
+        {
+          "anim": "crouchwalk_down",
+          "frames": 4,
+          "row": 12,
+          "facing": "down"
+        },
+        {
+          "anim": "crouchwalk_up",
+          "frames": 4,
+          "row": 13,
+          "facing": "up"
+        },
+        {
+          "anim": "crouchwalk_side",
+          "frames": 4,
+          "row": 14,
+          "facing": "side"
+        },
+        {
+          "anim": "vault_down",
+          "frames": 4,
+          "row": 15,
+          "facing": "down"
+        },
+        {
+          "anim": "vault_up",
+          "frames": 4,
+          "row": 16,
+          "facing": "up"
+        },
+        {
+          "anim": "vault_side",
+          "frames": 4,
+          "row": 17,
+          "facing": "side"
+        },
+        {
+          "anim": "repair",
+          "frames": 2,
+          "row": 18,
+          "facing": "down"
+        },
+        {
+          "anim": "heal",
+          "frames": 2,
+          "row": 19,
+          "facing": "down"
+        },
+        {
+          "anim": "downed",
+          "frames": 2,
+          "row": 20,
+          "facing": "side"
+        },
+        {
+          "anim": "hooked",
+          "frames": 2,
+          "row": 21,
+          "facing": "down"
+        },
+        {
+          "anim": "struggle",
+          "frames": 2,
+          "row": 22,
+          "facing": "down"
+        },
+        {
+          "anim": "carried",
+          "frames": 2,
+          "row": 23,
+          "facing": "side"
+        },
+        {
+          "anim": "dead",
+          "frames": 2,
+          "row": 24,
+          "facing": "down"
+        }
+      ],
+      "palette": {
+        "skin": "#6b4530",
+        "hair": "#2a1c14",
+        "top": "#4d6b45",
+        "pants": "#3a3524",
+        "accent": "#8fbf72"
+      }
+    },
+    {
+      "name": "jake",
+      "frame_w": 16,
+      "frame_h": 22,
+      "rows": [
+        {
+          "anim": "idle_down",
+          "frames": 2,
+          "row": 0,
+          "facing": "down"
+        },
+        {
+          "anim": "idle_up",
+          "frames": 2,
+          "row": 1,
+          "facing": "up"
+        },
+        {
+          "anim": "idle_side",
+          "frames": 2,
+          "row": 2,
+          "facing": "side"
+        },
+        {
+          "anim": "walk_down",
+          "frames": 4,
+          "row": 3,
+          "facing": "down"
+        },
+        {
+          "anim": "walk_up",
+          "frames": 4,
+          "row": 4,
+          "facing": "up"
+        },
+        {
+          "anim": "walk_side",
+          "frames": 4,
+          "row": 5,
+          "facing": "side"
+        },
+        {
+          "anim": "run_down",
+          "frames": 6,
+          "row": 6,
+          "facing": "down"
+        },
+        {
+          "anim": "run_up",
+          "frames": 6,
+          "row": 7,
+          "facing": "up"
+        },
+        {
+          "anim": "run_side",
+          "frames": 6,
+          "row": 8,
+          "facing": "side"
+        },
+        {
+          "anim": "crouch_down",
+          "frames": 2,
+          "row": 9,
+          "facing": "down"
+        },
+        {
+          "anim": "crouch_up",
+          "frames": 2,
+          "row": 10,
+          "facing": "up"
+        },
+        {
+          "anim": "crouch_side",
+          "frames": 2,
+          "row": 11,
+          "facing": "side"
+        },
+        {
+          "anim": "crouchwalk_down",
+          "frames": 4,
+          "row": 12,
+          "facing": "down"
+        },
+        {
+          "anim": "crouchwalk_up",
+          "frames": 4,
+          "row": 13,
+          "facing": "up"
+        },
+        {
+          "anim": "crouchwalk_side",
+          "frames": 4,
+          "row": 14,
+          "facing": "side"
+        },
+        {
+          "anim": "vault_down",
+          "frames": 4,
+          "row": 15,
+          "facing": "down"
+        },
+        {
+          "anim": "vault_up",
+          "frames": 4,
+          "row": 16,
+          "facing": "up"
+        },
+        {
+          "anim": "vault_side",
+          "frames": 4,
+          "row": 17,
+          "facing": "side"
+        },
+        {
+          "anim": "repair",
+          "frames": 2,
+          "row": 18,
+          "facing": "down"
+        },
+        {
+          "anim": "heal",
+          "frames": 2,
+          "row": 19,
+          "facing": "down"
+        },
+        {
+          "anim": "downed",
+          "frames": 2,
+          "row": 20,
+          "facing": "side"
+        },
+        {
+          "anim": "hooked",
+          "frames": 2,
+          "row": 21,
+          "facing": "down"
+        },
+        {
+          "anim": "struggle",
+          "frames": 2,
+          "row": 22,
+          "facing": "down"
+        },
+        {
+          "anim": "carried",
+          "frames": 2,
+          "row": 23,
+          "facing": "side"
+        },
+        {
+          "anim": "dead",
+          "frames": 2,
+          "row": 24,
+          "facing": "down"
+        }
+      ],
+      "palette": {
+        "skin": "#d9a878",
+        "hair": "#1f1a15",
+        "top": "#3d4a52",
+        "pants": "#26302e",
+        "accent": "#6f8f6a"
+      }
+    },
+    {
+      "name": "trapper",
+      "frame_w": 24,
+      "frame_h": 30,
+      "rows": [
+        {
+          "anim": "idle_down",
+          "frames": 2,
+          "row": 0,
+          "facing": "down"
+        },
+        {
+          "anim": "idle_up",
+          "frames": 2,
+          "row": 1,
+          "facing": "up"
+        },
+        {
+          "anim": "idle_side",
+          "frames": 2,
+          "row": 2,
+          "facing": "side"
+        },
+        {
+          "anim": "walk_down",
+          "frames": 4,
+          "row": 3,
+          "facing": "down"
+        },
+        {
+          "anim": "walk_up",
+          "frames": 4,
+          "row": 4,
+          "facing": "up"
+        },
+        {
+          "anim": "walk_side",
+          "frames": 4,
+          "row": 5,
+          "facing": "side"
+        },
+        {
+          "anim": "chase_down",
+          "frames": 6,
+          "row": 6,
+          "facing": "down"
+        },
+        {
+          "anim": "chase_up",
+          "frames": 6,
+          "row": 7,
+          "facing": "up"
+        },
+        {
+          "anim": "chase_side",
+          "frames": 6,
+          "row": 8,
+          "facing": "side"
+        },
+        {
+          "anim": "attack_down",
+          "frames": 4,
+          "row": 9,
+          "facing": "down"
+        },
+        {
+          "anim": "attack_up",
+          "frames": 4,
+          "row": 10,
+          "facing": "up"
+        },
+        {
+          "anim": "attack_side",
+          "frames": 4,
+          "row": 11,
+          "facing": "side"
+        },
+        {
+          "anim": "lunge_down",
+          "frames": 3,
+          "row": 12,
+          "facing": "down"
+        },
+        {
+          "anim": "lunge_side",
+          "frames": 3,
+          "row": 13,
+          "facing": "side"
+        },
+        {
+          "anim": "carry_down",
+          "frames": 2,
+          "row": 14,
+          "facing": "down"
+        },
+        {
+          "anim": "carry_side",
+          "frames": 2,
+          "row": 15,
+          "facing": "side"
+        },
+        {
+          "anim": "stun",
+          "frames": 2,
+          "row": 16,
+          "facing": "down"
+        },
+        {
+          "anim": "place_down",
+          "frames": 3,
+          "row": 17,
+          "facing": "down"
+        },
+        {
+          "anim": "pickup_side",
+          "frames": 2,
+          "row": 18,
+          "facing": "side"
+        },
+        {
+          "anim": "hooking_down",
+          "frames": 3,
+          "row": 19,
+          "facing": "down"
+        }
+      ]
+    }
+  ],
+  "props": [
+    {
+      "name": "generator",
+      "w": 128,
+      "h": 40
+    },
+    {
+      "name": "hook",
+      "w": 16,
+      "h": 28
+    },
+    {
+      "name": "pallet",
+      "w": 32,
+      "h": 14
+    },
+    {
+      "name": "pallet_broken",
+      "w": 32,
+      "h": 8
+    },
+    {
+      "name": "window",
+      "w": 32,
+      "h": 10
+    },
+    {
+      "name": "locker",
+      "w": 16,
+      "h": 28
+    },
+    {
+      "name": "hatch_closed",
+      "w": 24,
+      "h": 24
+    },
+    {
+      "name": "hatch_open",
+      "w": 24,
+      "h": 24
+    },
+    {
+      "name": "exit_switch",
+      "w": 16,
+      "h": 28
+    },
+    {
+      "name": "exit_gate_closed",
+      "w": 48,
+      "h": 24
+    },
+    {
+      "name": "exit_gate_open",
+      "w": 48,
+      "h": 24
+    },
+    {
+      "name": "chest",
+      "w": 20,
+      "h": 18
+    },
+    {
+      "name": "beartrap_open",
+      "w": 14,
+      "h": 12
+    },
+    {
+      "name": "beartrap_closed",
+      "w": 14,
+      "h": 12
+    },
+    {
+      "name": "scratch_mark",
+      "w": 10,
+      "h": 8
+    },
+    {
+      "name": "blood_drop",
+      "w": 6,
+      "h": 6
+    }
+  ],
+  "atlases": {
+    "tiles": {
+      "cols": 8,
+      "frame_w": 16,
+      "frame_h": 16,
+      "names": [
+        "grass",
+        "grass_dark",
+        "dirt",
+        "mud",
+        "wood",
+        "stone",
+        "gravel",
+        "blood_floor",
+        "snow",
+        "metal",
+        "wall_brick",
+        "wall_wood",
+        "wall_rock",
+        "water",
+        "crop",
+        "concrete"
+      ]
+    },
+    "icons": {
+      "cols": 8,
+      "frame_w": 16,
+      "frame_h": 16,
+      "names": [
+        "generator",
+        "hook",
+        "pallet",
+        "window",
+        "hatch",
+        "gate",
+        "locker",
+        "chest",
+        "trap",
+        "heal",
+        "repair",
+        "rescue",
+        "escape",
+        "skull",
+        "downed",
+        "injured",
+        "perk",
+        "item",
+        "addon",
+        "power",
+        "heart",
+        "chase",
+        "scratch",
+        "blood",
+        "arrow_up",
+        "arrow_down",
+        "arrow_left",
+        "arrow_right",
+        "victim",
+        "killer",
+        "survivor",
+        "objective"
+      ]
+    }
+  }
+}

@@ -1,0 +1,367 @@
+# 2DDBD · 开发规划书 (Planning.md)
+
+> 项目：2D 俯视角像素风《黎明杀机》致敬作品
+> 工作空间：`E:\PC\2DDBD`
+> 引擎：Godot 4.5.1 stable (Forward+ / GL Compatibility 双导出)
+> 文档版本：v1.0 · 2026-09-25
+
+---
+
+## 0. 一句话定位
+
+把《Dead by Daylight》的**非对称 1v4 恐怖追逐循环**完整搬进 2D 俯视角像素世界：
+一名杀手对抗四名逃生者，围绕「修复发电机 → 开启大门 → 逃脱」与「击倒 → 挂钩 → 献祭」两条对抗轴线展开。
+
+---
+
+## 1. 需求确认结果（陌老师拍板）
+
+| 议题 | 决策 |
+|---|---|
+| 对战模式 | **单人为核心**（AI 驱动其余 4 个席位）+ **局域网 ENet 主机权威联机** + **无服务器 P2P（WebRTC + 手动信令交换）** |
+| 美术方案 | **SVG 像素精灵**（Godot 4 原生 ThorVG 导入，整数倍栅格化 → 像素完美）；音效用程序化合成 WAV |
+| 还原程度 | **机制与角色贴脸还原**，素材 100% 自制（不复制任何原作资产） |
+| 交付形式 | **Godot 完整工程源码 + 导出 Windows x86_64 exe**，附带双语 README 与商业风落地页 |
+
+### 版权声明口径
+本项目为**非商业粉丝致敬 / 技术学习作品**。《Dead by Daylight》及其角色、商标归 Behaviour Interactive 所有。
+项目内所有图形、音频均由本项目脚本**程序化生成**，未使用任何原作素材文件。详见 `LICENSE` 与 `README.md` 的 Legal 段落。
+
+---
+
+## 2. 原作机制还原清单（Feature Parity Matrix）
+
+### 2.1 逃生者 (Survivor)
+
+| 原作机制 | 本项目实现 | 优先级 |
+|---|---|---|
+| 奔跑 / 行走 / 蹲伏潜行 | 三档移动状态机，蹲伏降低体型与心跳可见性 | P0 |
+| 交互（修机/治疗/救援/开门/翻越/放板） | 通用 `Interactable` 组件 + 长按进度条 | P0 |
+| 技能检定 (Skill Check) | 圆环指针 + 成功区/完美区，失败触发爆机惩罚与噪音 | P0 |
+| 血量状态：健康 → 受伤 → 倒地 → 濒死 | 4 段状态机 + 血迹痕迹 + 呻吟音效 | P0 |
+| 挂钩三阶段（挣扎 / 献祭尝试 / 献祭） | 一阶段可自救概率、二阶段需队友、三阶段献祭 | P0 |
+| 救援 (Unhook) | 队友靠近长按救下，获短暂「坚毅」加速 | P0 |
+| 自我治疗 / 互相治疗 | 治疗进度条，医疗包加速与耐久消耗 | P0 |
+| 翻窗 / 放板 / 板窗循环 (Loop) | 板窗交互 + 杀手被木板击晕 | P0 |
+| 储物柜躲藏 | 躲入柜子隐藏，杀手可开柜抓人 | P1 |
+| 地窖 (Hatch) | 剩 1 人时开启，跳入立即逃脱 | P1 |
+| 出口大门 | 5 台发电机通电后开关可拉，拉门进度条 | P0 |
+| 道具 (Item)：医疗包/手电筒/工具箱/地图 | 4 类道具 + 耐久消耗 | P1 |
+| 技能 (Perk) ×4 槽 | 16 个原创化但机制对位的 perk | P1 |
+| 配件 (Add-on) ×2 槽 | 每个道具 3 个配件 | P2 |
+| 爪痕 (Scratch Marks) | 奔跑时留下短时爪痕供杀手追踪 | P0 |
+| 血迹 (Blood) | 受伤时掉落血迹 | P0 |
+
+### 2.2 杀手 (Killer) —— The Trapper / 陷阱杀手
+
+| 原作机制 | 本项目实现 | 优先级 |
+|---|---|---|
+| 移动速度 4.6 m/s，攻击后减速 | 速度参数表 + 攻击后摇 3s 移速惩罚 | P0 |
+| 基础攻击 (M1) / 蓄力突进 (Lunge) | 挥击判定扇形 + 突进距离 | P0 |
+| **力量：捕兽夹** | 地面放置夹子，逃生者踩中定身，杀手可抱起 | P0 |
+| 抱起 / 扛肩 (Carry) | 击倒后抱起，移速降低，逃生者可挣扎 | P0 |
+| 挂钩献祭 | 就近钩子自动挂，未使用钩子不重复 | P0 |
+| 恐惧半径 / 心跳 (Terror Radius) | 32m 半径，距离越近心跳越快越响 | P0 |
+| 杀戮欲望 (Bloodlust) | 同目标追击 15/25/35s 逐步加速，攻击或失目标重置 | P1 |
+| 踩板 (Pallet Break) | 站立踩碎木板，耗时 2.6s | P0 |
+| 开柜搜人 | 开柜抓人 / 空柜 | P1 |
+| 红雾 / 视野 | 视野锥 + 视线遮挡（墙体阻挡） | P0 |
+| 配件 ×2 | 夹子相关配件（增加夹子数 / 踩中致伤） | P2 |
+
+### 2.3 全局系统
+
+| 系统 | 实现要点 |
+|---|---|
+| 发电机 | 5 台，单台 80s 独立修复时间；合作修复有 15% 效率惩罚（贴近原作） |
+| 出口大门 | 通电后两个开关，各需 20s 拉闸 |
+| 地窖 | 剩余 1 名逃生者时开启 |
+| 比赛流程 | 准备 → 开局（三阶段：热身/常规/残局）→ 结束结算 |
+| 计分 | 血网点（Bloodpoints）：目标分/生存分/救援分/牺牲分 四类 |
+| 音效 | 心跳、发电机、惨叫、钩子、脚步、UI、追逐音乐（程序化合成） |
+| 视野 | `LightOccluder2D` + `PointLight2D` 形成视野锥与阴影遮挡 |
+| 摄像机 | 平滑跟随 + 追逐时轻微拉远 + 屏幕震动 |
+| UI | HUD 目标进度、队友状态栏、检定圆环、交互提示、结算页 |
+
+---
+
+## 3. 技术架构
+
+### 3.1 分层
+
+```
+┌──────────────────────────────────────────────────────┐
+│  UI 层        MainMenu / Lobby / HUD / Loadout /     │
+│               Results / Settings                     │
+├──────────────────────────────────────────────────────┤
+│  系统层       MatchController · SkillCheckSystem ·   │
+│               BloodlustSystem · TerrorRadius ·       │
+│               VisionSystem · MapGenerator            │
+├──────────────────────────────────────────────────────┤
+│  角色层       CharacterBase ── Survivor / Killer     │
+│               StateMachine + State 子类               │
+├──────────────────────────────────────────────────────┤
+│  交互物层     Interactable ── Generator / Hook /     │
+│               Pallet / Window / Locker / Hatch /     │
+│               ExitGate / Chest / BearTrap            │
+├──────────────────────────────────────────────────────┤
+│  AI 层        SurvivorBrain (BT) / KillerBrain (FSM) │
+│               Perception (视野锥 + 遮挡 + 听觉)        │
+├──────────────────────────────────────────────────────┤
+│  网络层       NetBridge ── Offline / ENetLAN /       │
+│               WebRTCP2P(+) ManualSignaling           │
+├──────────────────────────────────────────────────────┤
+│  全局单例     GameConfig · EventBus · SaveData ·     │
+│               AudioDirector · Locale · NetBridge     │
+└──────────────────────────────────────────────────────┘
+```
+
+### 3.2 目录结构
+
+```
+2DDBD/
+├── project.godot
+├── icon.svg
+├── Planning/Planning.md
+├── README.md / README-zh.md / LICENSE
+├── index.html                 ← 商业风落地页（浅/深色）
+├── src/
+│   ├── autoload/              ← 全局单例（6 个）
+│   ├── core/                  ← 常量、枚举、工具
+│   ├── actors/
+│   │   ├── character_base.gd  ← CharacterBody2D 基类
+│   │   ├── survivor/          ← 逃生者 + 13 个状态
+│   │   └── killer/            ← 杀手 + 12 个状态 + 力量
+│   ├── interactables/         ← 9 类交互物件
+│   ├── ai/                    ← 逃生者/杀手 AI 与感知
+│   ├── systems/               ← 比赛控制、检定、杀戮欲望等
+│   ├── map/                   ← 关卡定义与程序化生成
+│   ├── ui/                    ← 全部界面与主题
+│   ├── net/                   ← 三种网络后端 + 信令
+│   └── data/                  ← JSON 配表（杀手/技能/道具/配件）
+├── assets/
+│   ├── sprites/               ← SVG 像素精灵源文件
+│   ├── audio/                 ← 程序化合成 WAV
+│   └── fonts/                 ← 像素字体
+├── tools/
+│   ├── gen_sprites.py         ← SVG 精灵生成器
+│   ├── gen_audio.py           ← 音效合成器
+│   └── build.py / build.bat   ← 一键构建 + 导出
+└── build/                     ← 导出产物
+```
+
+### 3.3 全局单例
+
+| 单例 | 职责 |
+|---|---|
+| `GameConfig` | 全部可调参数（速度/时间/半径/得分），单一数据源 |
+| `EventBus` | 全局信号总线，解耦角色与 UI |
+| `SaveData` | `user://save.cfg` 存取设置与血网点 |
+| `AudioDirector` | 音频总线、动态 BGM 切换、心跳强度 |
+| `Locale` | 中英文本表与切换 |
+| `NetBridge` | 网络后端抽象（offline / lan / p2p） |
+
+### 3.4 网络架构
+
+统一接口：
+
+```gdscript
+# src/net/net_base.gd
+class_name NetBase extends RefCounted
+func host(port: int) -> Error
+func join(ip: String, port: int) -> Error
+func is_server() -> bool
+func tick(delta: float) -> void
+```
+
+三种后端：
+
+| 后端 | 类 | 场景 |
+|---|---|---|
+| `Offline` | `NetOffline` | 单机，AI 填充 4 席 |
+| `LAN` | `NetEnet` | 局域网主机权威，`ENetMultiplayerPeer` |
+| `P2P` | `NetWebRTC` | 无服务器，`WebRTCMultiplayerPeer` + **手动 SDP 文本交换**（A 复制 offer → B 粘贴 → B 返回 answer） |
+
+同步策略：**主机权威 + 客户端输入上行 + `MultiplayerSynchronizer` 状态下行 + 客户端本地插值**。
+只有逃生者位置/状态、发电机进度、杀手位置/状态走同步；表现层（粒子/音效）本地播放。
+
+---
+
+## 4. 数据结构
+
+### 4.1 比赛状态
+
+```gdscript
+# MatchState（运行时，非持久化）
+{
+  "phase": int,              # PREP / EARLY / MID / LATE / ENDED
+  "generators_total": int,   # 5
+  "generators_done": int,
+  "exit_powered": bool,
+  "hatch_open": bool,
+  "survivors": Array[SurvivorState],
+  "bloodpoints": { "objective": 0, "survival": 0, "altruism": 0, "sacrifice": 0 }
+}
+```
+
+### 4.2 角色状态
+
+```gdscript
+# SurvivorState
+{
+  "id": int, "name": String, "char_id": String,
+  "health": int,        # 0=HEALTHY 1=INJURED 2=DOWNED 3=DYING(阶段1..3) 4=HOOKED 5=ESCAPED 6=DEAD
+  "hook_stage": int,    # 0 / 1 / 2
+  "hook_count": int,    # 已被挂次数（决定下一阶段起点）
+  "held_item": String, "item_charge": float,
+  "perks": Array[String], "addons": Array[String],
+  "is_ai": bool, "bloodpoints": int
+}
+```
+
+### 4.3 配表 (JSON)
+
+`src/data/killers.json`
+```json
+{
+  "trapper": {
+    "id": "trapper", "display": {"zh":"陷阱杀手", "en":"The Trapper"},
+    "move_speed": 4.6, "terror_radius": 32.0,
+    "attack": { "windup": 0.35, "cooldown": 3.0, "range": 2.2, "arc": 90 },
+    "lunge": { "speed": 6.0, "duration": 0.5, "recover": 1.0 },
+    "power": {
+      "id": "bear_trap", "max_traps": 6, "start_traps": 2,
+      "place_time": 2.5, "pickup_time": 2.5,
+      "trapped_escape_chance": 0.16, "trapped_escape_attempt": 2.5
+    },
+    "addons": ["tar_bottle", "rusted_chain", "trapper_sack", "honed_stone"]
+  }
+}
+```
+
+`src/data/items.json` —— 医疗器械包 / 手电筒 / 工具箱 / 地图，含耐久与配件槽。
+`src/data/perks.json` —— 16 个 perk，含触发条件与效果键值。
+`src/data/maps.json` —— 4 张地图的瓦片配置与物件配比。
+
+---
+
+## 5. 美术方案：程序化 SVG 像素精灵
+
+### 5.1 为什么用 SVG
+- Godot 4 内置 ThorVG 导入器，`.svg` 直接当纹理用；
+- 整数倍栅格化（导入时设 `scale`）→ 边缘绝对锐利，真正像素完美；
+- 矢量源文件体积小、配色可脚本批量替换（同一个骨架出 4 套角色配色）；
+- 无外部素材依赖 → 零版权风险。
+
+### 5.2 生成流水线
+
+```
+tools/gen_sprites.py
+   ├─ 像素画布类 PixelCanvas(w, h)：set(x,y,color) / run-length 合并
+   ├─ 骨架绘制函数：draw_humanoid(canvas, pose, palette, equipment)
+   ├─ 姿态库：idle / walk / run / crouch / vault / injured / downed / hooked / carry / attack
+   ├─ 物件绘制函数：generator / hook / pallet / window / locker / hatch / exit_gate / chest / beartrap
+   ├─ 地形瓦片：grass / dirt / wood / stone / wall / tree / rock
+   └─ 输出 → assets/sprites/**/*.svg
+                             ↓ Godot 导入（scale=4, filter=nearest）
+                         .godot/imported/*.ctex
+```
+
+### 5.3 尺寸规范
+
+| 类别 | 逻辑像素 | 导入缩放 | 世界像素 |
+|---|---|---|---|
+| 角色 / 杀手 | 16 × 20 | ×4 | 64 × 80 |
+| 发电机 / 钩子 | 24 × 24 | ×4 | 96 × 96 |
+| 板 / 窗 / 柜 | 24 × 20 | ×4 | 96 × 80 |
+| 地形瓦片 | 16 × 16 | ×4 | 64 × 64 |
+| UI 图标 | 16 × 16 | ×2 | 32 × 32 |
+
+### 5.4 音频方案
+`tools/gen_audio.py` 用 numpy 合成：心跳（低频脉冲）、发电机（噪声+谐波）、惨叫（共振峰）、脚步（噪声包络）、钩子金属声、UI 音、环境风声、追逐 BGM（音序器生成）。
+
+---
+
+## 6. 开发阶段规划（8 个可迭代里程碑）
+
+| 阶段 | 名称 | 交付物 | 验收标准 |
+|---|---|---|---|
+| **M1** | 工程地基 | `project.godot`、6 个单例、常量/枚举、输入映射、主题 | 能启动，空场景正常 |
+| **M2** | 资源生成 | `gen_sprites.py` / `gen_audio.py`，全部 SVG + WAV | 资源目录无缺失，导入无报错 |
+| **M3** | 角色与移动 | `CharacterBase`、状态机、逃生者/杀手移动、摄像机、视野遮挡 | 能操控杀手与逃生者在地图中跑动 |
+| **M4** | 交互循环 | 发电机 + 检定、大门、钩子、板窗、柜子、地窖、夹子 | 单人可完成「修 5 机 → 开门 → 逃脱」全流程 |
+| **M5** | 追逐战斗 | 攻击/突进/踩板/抱起/挂钩/献祭/血量四态/杀戮欲望/恐惧半径 | 杀手可完成「击倒 → 挂钩 → 献祭」全流程 |
+| **M6** | AI | 逃生者 AI（修机/逃跑/救援/治疗）+ 杀手 AI（巡逻/追逐/挂人） | 5 席全 AI 能打完整局，胜负可判定 |
+| **M7** | UI 与打磨 | 主菜单/配装/HUD/检定圈/结算/设置、音效接入、双语 | 全流程无占位界面，中英可切 |
+| **M8** | 联机与发布 | ENet 局域网 + WebRTC P2P 信令、导出 exe、README、落地页 | 两台机器可联机；exe 可双击运行 |
+
+---
+
+## 7. 关键参数表（忠于原作数值）
+
+### 7.1 移动速度 (m/s)
+
+| 单位 | 基础 | 备注 |
+|---|---|---|
+| 逃生者奔跑 | 4.0 | 体力无限，蹲伏 2.26 |
+| 逃生者行走 | 2.26 | |
+| 逃生者蹲伏 | 1.13 | |
+| 逃生者受伤 | 4.0 | 与健康一致 |
+| 杀手 | 4.6 | |
+| 杀手（扛人） | 3.68 | −20% |
+| 杀手（攻击后摇） | 2.76 | −40%，3s |
+| 杀手（杀戮欲望 I/II/III） | 4.78 / 4.97 / 5.15 | 追击 15/25/35s 触发 |
+| 杀手突进 | 6.0 | |
+
+### 7.2 时间
+
+| 动作 | 时长 |
+|---|---|
+| 发电机（单人） | 80 s |
+| 发电机（多人合作惩罚） | 每多一人 −15% 效率 |
+| 出口大门开关 | 20 s |
+| 治疗自己 | 16 s（无医疗包） |
+| 治疗他人 | 16 s |
+| 救援挂钩队友 | 1 s |
+| 挂钩一阶段 | 60 s |
+| 挂钩二阶段 | 60 s |
+| 自我脱钩概率 | 4 % |
+| 踩板 | 2.6 s |
+| 翻窗 | 0.5 s（逃生者）/ 1.5 s（杀手） |
+| 放夹子 | 2.5 s |
+| 力量冷却 | — |
+
+### 7.3 数值
+
+| 项 | 值 |
+|---|---|
+| 恐惧半径 | 32 m |
+| 攻击命中判定 | 扇形，射程 2.2 m，张角 90° |
+| 突进距离 | 约 3 m |
+| 地窖开启条件 | 场上剩余 1 名逃生者 |
+| 逃生者最大血量 | 2（健康 → 受伤）；受伤后再受击 → 倒地 |
+| 挂钩献祭完成次数 | 3 次受击判定（挂钩 ↔ 被救）后下一挂直接进二阶段 |
+
+---
+
+## 8. 风险与对策
+
+| 风险 | 影响 | 对策 |
+|---|---|---|
+| SVG 导入非整数倍导致糊边 | 观感崩坏 | 统一 `scale=4` + `filter=nearest` + 摄像机像素对齐 |
+| AI 行为不自然 / 卡墙 | 单机体验差 | 用 `NavigationRegion2D` + `NavigationAgent2D` 寻路，行为树带超时回退 |
+| Godot 4.5 API 变动 | 编译失败 | 全部代码针对 4.5 编写，交付前用 `--headless --check-only` 全量脚本校验 |
+| P2P 信令复杂易错 | 联机不可用 | 保留 ENet 局域网为「稳」路线，WebRTC 为「无服务器」路线，两者共用角色逻辑 |
+| 版权争议 | 无法发布 | 全部素材自制 + README 明确非商业粉丝作品声明 |
+
+---
+
+## 9. 交付清单
+
+- [x] `Planning/Planning.md`（本文件）
+- [ ] 完整 Godot 工程（可直接用编辑器打开）
+- [ ] 程序化生成的 SVG 像素精灵 + WAV 音效
+- [ ] `build/2DDBD.exe` Windows x86_64 导出
+- [ ] `README.md`（英）/ `README-zh.md`（中）
+- [ ] `index.html` 商业风落地页（浅/深色）
+- [ ] `LICENSE`（Available License）
+- [ ] 推送至 `https://github.com/Developerprit/2DDBD`

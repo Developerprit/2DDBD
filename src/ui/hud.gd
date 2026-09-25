@@ -1,0 +1,562 @@
+extends CanvasLayer
+## HUD -- objectives, teammate status, interaction prompt, skill check dial,
+## power/item readout and the terror indicator.
+##
+## Everything is built in code so the layout stays in one readable place and the
+## theme can be swapped at runtime.
+
+var mc: MatchController = null
+var theme_res: Theme
+
+# widgets
+var root: Control
+var gen_row: HBoxContainer
+var gen_label: Label
+var team_list: VBoxContainer
+var prompt_box: PanelContainer
+var prompt_label: Label
+var prompt_bar: ProgressBar
+var dial: Control
+var killer_panel: PanelContainer
+var power_label: Label
+var item_label: Label
+var toast_box: VBoxContainer
+var bloodlust_bar: ProgressBar
+var map_overlay: Control
+var fps_label: Label
+var objective_hint: Label
+
+var _toasts: Array = []
+var _map_visible := false
+var _last_prompt := ""
+
+# --- pause overlay ---------------------------------------------------------
+var pause_root: Control
+var paused := false
+
+
+func _ready() -> void:
+	layer = 10
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	theme_res = UITheme.build()
+	_build()
+	EventBus.toast.connect(_on_toast)
+	EventBus.settings_changed.connect(_rebuild_theme)
+	await get_tree().process_frame
+	mc = MatchController.instance
+
+
+func _rebuild_theme() -> void:
+	theme_res = UITheme.build()
+	if root != null:
+		root.theme = theme_res
+
+
+func _build() -> void:
+	root = Control.new()
+	root.name = "Root"
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.theme = theme_res
+	add_child(root)
+
+	_build_top_left()
+	_build_top_right()
+	_build_bottom_center()
+	_build_dial()
+	_build_killer_panel()
+	_build_toasts()
+	_build_map_overlay()
+	_build_pause_overlay()
+
+	fps_label = UITheme.dim("", 9)
+	fps_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	fps_label.position = Vector2(-60, 4)
+	fps_label.visible = GameConfig.show_fps
+	root.add_child(fps_label)
+
+
+func _panel_style() -> StyleBoxFlat:
+	var p := UITheme.palette()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(str(p["panel"]))
+	sb.bg_color.a = 0.82
+	sb.border_color = Color(str(p["line"]))
+	sb.set_border_width_all(1)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 5
+	sb.content_margin_bottom = 5
+	return sb
+
+
+# ---------------------------------------------------------------------------
+func _build_top_left() -> void:
+	var box := VBoxContainer.new()
+	box.position = Vector2(8, 6)
+	box.add_theme_constant_override("separation", 4)
+	root.add_child(box)
+
+	gen_label = Label.new()
+	gen_label.text = "GENERATORS 0 / 5"
+	gen_label.add_theme_font_size_override("font_size", 12)
+	gen_label.add_theme_color_override("font_color", UITheme.color("gold"))
+	box.add_child(gen_label)
+
+	gen_row = HBoxContainer.new()
+	gen_row.add_theme_constant_override("separation", 3)
+	box.add_child(gen_row)
+	for i in GameConfig.GENERATORS_TOTAL:
+		var dot := ColorRect.new()
+		dot.custom_minimum_size = Vector2(16, 6)
+		dot.color = Color(str(UITheme.palette()["line"]))
+		gen_row.add_child(dot)
+
+	objective_hint = UITheme.dim("", 9)
+	box.add_child(objective_hint)
+
+
+func _build_top_right() -> void:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _panel_style())
+	panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	panel.position = Vector2(-190, 6)
+	panel.custom_minimum_size = Vector2(182, 0)
+	root.add_child(panel)
+
+	team_list = VBoxContainer.new()
+	team_list.add_theme_constant_override("separation", 2)
+	panel.add_child(team_list)
+
+
+func _build_bottom_center() -> void:
+	prompt_box = PanelContainer.new()
+	prompt_box.add_theme_stylebox_override("panel", _panel_style())
+	prompt_box.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	prompt_box.position = Vector2(-110, -70)
+	prompt_box.custom_minimum_size = Vector2(220, 0)
+	prompt_box.visible = false
+	root.add_child(prompt_box)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 3)
+	prompt_box.add_child(v)
+
+	prompt_label = Label.new()
+	prompt_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prompt_label.add_theme_font_size_override("font_size", 11)
+	v.add_child(prompt_label)
+
+	prompt_bar = ProgressBar.new()
+	prompt_bar.custom_minimum_size = Vector2(200, 6)
+	prompt_bar.show_percentage = false
+	v.add_child(prompt_bar)
+
+
+func _build_dial() -> void:
+	dial = Control.new()
+	dial.name = "SkillCheckDial"
+	dial.custom_minimum_size = Vector2(90, 90)
+	dial.size = Vector2(90, 90)
+	dial.set_anchors_preset(Control.PRESET_CENTER)
+	dial.position = Vector2(-45, -80)
+	dial.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dial.visible = false
+	dial.draw.connect(_draw_dial)
+	root.add_child(dial)
+
+
+func _build_killer_panel() -> void:
+	killer_panel = PanelContainer.new()
+	killer_panel.add_theme_stylebox_override("panel", _panel_style())
+	killer_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	killer_panel.position = Vector2(8, -56)
+	killer_panel.visible = false
+	root.add_child(killer_panel)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	killer_panel.add_child(v)
+
+	power_label = Label.new()
+	power_label.add_theme_font_size_override("font_size", 11)
+	v.add_child(power_label)
+
+	bloodlust_bar = ProgressBar.new()
+	bloodlust_bar.custom_minimum_size = Vector2(140, 5)
+	bloodlust_bar.show_percentage = false
+	bloodlust_bar.max_value = 3
+	v.add_child(bloodlust_bar)
+
+	item_label = Label.new()
+	item_label.add_theme_font_size_override("font_size", 10)
+	item_label.add_theme_color_override("font_color", UITheme.color("text_dim"))
+	v.add_child(item_label)
+
+
+func _build_toasts() -> void:
+	toast_box = VBoxContainer.new()
+	toast_box.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	toast_box.position = Vector2(-140, 40)
+	toast_box.custom_minimum_size = Vector2(280, 0)
+	toast_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	toast_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(toast_box)
+
+
+func _build_map_overlay() -> void:
+	map_overlay = Control.new()
+	map_overlay.name = "MapOverlay"
+	map_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	map_overlay.custom_minimum_size = Vector2(240, 240)
+	map_overlay.size = Vector2(240, 240)
+	map_overlay.position = Vector2(-120, -120)
+	map_overlay.visible = false
+	map_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	map_overlay.draw.connect(_draw_map)
+	root.add_child(map_overlay)
+
+
+# ---------------------------------------------------------------------------
+# Drawing
+# ---------------------------------------------------------------------------
+func _draw_dial() -> void:
+	var s := dial.size
+	var c := s * 0.5
+	var r := minf(s.x, s.y) * 0.5 - 4.0
+
+	# Track
+	dial.draw_arc(c, r, 0.0, TAU, 48, Color(0.1, 0.11, 0.13, 0.85), 6.0, true)
+
+	var sv := _local_survivor()
+	if sv == null or not sv.skill.active:
+		return
+	var sk := sv.skill
+
+	# Good band
+	var g0 := (sk.great_center - sk.good_half) * TAU - PI * 0.5
+	var g1 := (sk.great_center + sk.good_half) * TAU - PI * 0.5
+	dial.draw_arc(c, r, g0, g1, 32, Color(0.62, 0.66, 0.70, 0.95), 6.0, true)
+
+	# Great band
+	var t0 := (sk.great_center - sk.great_half) * TAU - PI * 0.5
+	var t1 := (sk.great_center + sk.great_half) * TAU - PI * 0.5
+	dial.draw_arc(c, r, t0, t1, 32, Color(0.95, 0.82, 0.38, 1.0), 6.0, true)
+
+	# Needle
+	var a := sk.value * TAU - PI * 0.5
+	var dir := Vector2(cos(a), sin(a))
+	dial.draw_line(c + dir * (r - 9.0), c + dir * (r + 5.0), Color(0.95, 0.95, 0.95), 2.0, true)
+	dial.draw_circle(c + dir * (r - 9.0), 2.0, Color(0.95, 0.95, 0.95))
+
+
+func _draw_map() -> void:
+	if mc == null:
+		return
+	var s := map_overlay.size
+	var scale_f := s.x / float(GameConfig.MAP_SIZE)
+	map_overlay.draw_rect(Rect2(Vector2.ZERO, s), Color(0.05, 0.06, 0.08, 0.88))
+
+	# Walls
+	if mc.grid.size() > 0:
+		var step := 4
+		var y := 0
+		while y < mc.map_size:
+			var x := 0
+			while x < mc.map_size:
+				if MapGenerator.at(mc.grid, mc.map_size, x, y) == MapGenerator.F_WALL:
+					map_overlay.draw_rect(Rect2(
+						Vector2(x, y) * GameConfig.TILE * scale_f,
+						Vector2(step, step) * GameConfig.TILE * scale_f), Color(0.35, 0.37, 0.42))
+				x += step
+			y += step
+
+	for entry in mc.objective_positions():
+		var p: Vector2 = entry["pos"] * scale_f
+		var col := Color(0.85, 0.72, 0.32)
+		match str(entry["kind"]):
+			"generator":
+				col = Color(0.35, 0.72, 0.42) if entry["done"] else Color(0.85, 0.72, 0.32)
+			"hook":
+				col = Color(0.55, 0.35, 0.32)
+			"gate":
+				col = Color(0.42, 0.62, 0.85)
+			"hatch":
+				col = Color(0.55, 0.82, 0.95)
+		map_overlay.draw_circle(p, 3.0, col)
+
+	for sv in mc.survivors:
+		if not is_instance_valid(sv) or sv.health == Enums.Health.DEAD:
+			continue
+		map_overlay.draw_circle(sv.global_position * scale_f, 3.0, Utils.health_color(sv.health))
+
+	if mc.killer != null and is_instance_valid(mc.killer):
+		var kp: Vector2 = mc.killer.global_position * scale_f
+		if mc.player_role == Enums.Team.KILLER:
+			map_overlay.draw_circle(kp, 4.0, Color(0.85, 0.25, 0.2))
+		else:
+			# Survivors only see the killer when he is close enough to hear.
+			var d := _player_pos().distance_to(mc.killer.global_position)
+			if d < GameConfig.TERROR_RADIUS * 0.8:
+				map_overlay.draw_circle(kp, 4.0, Color(0.85, 0.25, 0.2, 0.85))
+
+
+# ---------------------------------------------------------------------------
+# Runtime updates
+# ---------------------------------------------------------------------------
+func _process(delta: float) -> void:
+	if mc == null:
+		mc = MatchController.instance
+		if mc == null:
+			return
+	_sync_generators()
+	_sync_team()
+	_sync_prompt()
+	_sync_dial()
+	_sync_killer_panel()
+	_sync_map()
+	if fps_label != null and GameConfig.show_fps:
+		fps_label.text = "%d fps" % int(Engine.get_frames_per_second())
+
+
+func _player_pos() -> Vector2:
+	if mc.local_actor != null and is_instance_valid(mc.local_actor):
+		return mc.local_actor.global_position
+	return Vector2.ZERO
+
+
+func _local_survivor() -> Survivor:
+	if mc == null:
+		return null
+	if mc.player_role == Enums.Team.KILLER:
+		return null
+	var s := mc.local_actor as Survivor
+	if s == null or not is_instance_valid(s):
+		return null
+	if s.health in [Enums.Health.ESCAPED, Enums.Health.DEAD]:
+		return null
+	return s
+
+
+func _sync_generators() -> void:
+	if mc == null:
+		return
+	gen_label.text = "%s %d / %d" % [Locale.t("hud.generators").to_upper(),
+			mc.generators_done, GameConfig.GENERATORS_TOTAL]
+	var i := 0
+	for child in gen_row.get_children():
+		var dot := child as ColorRect
+		if dot == null:
+			continue
+		dot.color = Color(str(UITheme.palette()["gold"])) if i < mc.generators_done \
+				else Color(str(UITheme.palette()["line"]))
+		i += 1
+	if mc.exit_powered:
+		objective_hint.text = Locale.t("hud.gate_powered")
+	elif mc.hatch_node != null and mc.hatch_node.is_open:
+		objective_hint.text = Locale.t("hud.hatch_open")
+	else:
+		objective_hint.text = ""
+
+
+func _sync_team() -> void:
+	if mc == null:
+		return
+	var kids := team_list.get_children()
+	while kids.size() < mc.survivors.size():
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		var dot := ColorRect.new()
+		dot.custom_minimum_size = Vector2(5, 9)
+		row.add_child(dot)
+		var lbl := Label.new()
+		lbl.add_theme_font_size_override("font_size", 10)
+		row.add_child(lbl)
+		team_list.add_child(row)
+		kids = team_list.get_children()
+
+	var i := 0
+	for sv in mc.survivors:
+		if i >= kids.size():
+			break
+		var row := kids[i] as HBoxContainer
+		var dot := row.get_child(0) as ColorRect
+		var lbl := row.get_child(1) as Label
+		var col := Utils.health_color(sv.health)
+		dot.color = col
+		var tag := ""
+		if not sv.is_ai:
+			tag = " ★"
+		lbl.text = "%s — %s%s" % [sv.display_name, Locale.t(Utils.health_key(sv.health)), tag]
+		lbl.add_theme_color_override("font_color", col)
+		i += 1
+
+
+func _sync_prompt() -> void:
+	var sv := _local_survivor()
+	if sv == null:
+		prompt_box.visible = false
+		return
+	var text := ""
+	var ratio := 0.0
+	var show_bar := false
+
+	match sv.machine.current_name:
+		"hooked":
+			text = Locale.t("act.struggle") if sv.hook_stage == 2 else Locale.t("act.self_unhook")
+			ratio = clampf(sv.struggle_value, 0.0, 1.0)
+			show_bar = sv.hook_stage == 2
+		"carried":
+			text = Locale.t("act.wiggle")
+			ratio = clampf(sv.wiggle, 0.0, 1.0)
+			show_bar = true
+		"interact":
+			var it := sv.interact_target
+			if it != null:
+				text = it.prompt(sv)
+				ratio = clampf(sv.interact_progress, 0.0, 1.0)
+				show_bar = it.hold_interact()
+		"trapped":
+			text = Locale.t("act.escape_trap")
+		_:
+			if sv.interact_target != null and is_instance_valid(sv.interact_target):
+				text = "%s: %s" % [Locale.t("hint.hold"), sv.interact_target.prompt(sv)]
+	if text == "" and mc != null and mc.player_role == Enums.Team.KILLER:
+		var k := mc.local_actor as Killer
+		if k != null:
+			if k.is_carrying:
+				text = "%s: %s / %s" % [Locale.t("hint.press"), Locale.t("act.hook"), Locale.t("act.pickup")]
+			elif k.find_pickup_probe() != null:
+				text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.pickup")]
+
+	prompt_box.visible = text != ""
+	if text != "":
+		if prompt_label.text != text:
+			prompt_label.text = text
+		prompt_bar.visible = show_bar
+		if show_bar:
+			prompt_bar.value = ratio * 100.0
+
+
+func _sync_dial() -> void:
+	var sv := _local_survivor()
+	var show := sv != null and sv.skill.active
+	if dial.visible != show:
+		dial.visible = show
+	if show:
+		dial.queue_redraw()
+	elif dial.visible:
+		dial.queue_redraw()
+
+
+func _sync_killer_panel() -> void:
+	if mc == null:
+		return
+	var is_killer := mc.player_role == Enums.Team.KILLER
+	killer_panel.visible = is_killer
+	if not is_killer:
+		return
+	var k := mc.local_actor as Killer
+	if k == null:
+		return
+	power_label.text = "%s: %d" % [Locale.t("power.bear_trap"), k.trap_stock]
+	bloodlust_bar.value = k.bloodlust_tier
+	if k.held_item == "" and k.is_carrying:
+		item_label.text = Locale.t("act.hook")
+	elif k.attack_cooldown > 0.0:
+		item_label.text = "%.1fs" % k.attack_cooldown
+	else:
+		item_label.text = ""
+
+
+func _sync_map() -> void:
+	if Input.is_action_just_pressed("toggle_map"):
+		_map_visible = not _map_visible
+		map_overlay.visible = _map_visible
+		map_overlay.queue_redraw()
+	if _map_visible:
+		map_overlay.queue_redraw()
+
+
+# ---------------------------------------------------------------------------
+func _on_toast(text: String, color: Color) -> void:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 11)
+	l.add_theme_color_override("font_color", color)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast_box.add_child(l)
+	var tw := l.create_tween()
+	tw.tween_interval(1.6)
+	tw.tween_property(l, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(l.queue_free)
+
+
+# ---------------------------------------------------------------------------
+# Pause overlay
+# ---------------------------------------------------------------------------
+func _build_pause_overlay() -> void:
+	pause_root = Control.new()
+	pause_root.name = "PauseOverlay"
+	pause_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_root.visible = false
+	pause_root.theme = theme_res
+	root.add_child(pause_root)
+
+	var veil := ColorRect.new()
+	veil.color = Color(0.02, 0.025, 0.03, 0.85)
+	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
+	pause_root.add_child(veil)
+
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.position = Vector2(-120, -80)
+	box.custom_minimum_size = Vector2(240, 0)
+	box.add_theme_constant_override("separation", 7)
+	pause_root.add_child(box)
+
+	var title := UITheme.heading("PAUSED", 24)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+
+	var hint := UITheme.dim("%s  ·  %s" % [Locale.t("hint.press") + " Esc",
+			Locale.t("menu.settings") + " / " + Locale.t("menu.back_to_menu")], 10)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(hint)
+
+	box.add_child(_pause_button(Locale.t("menu.resume"), func() -> void: _toggle_pause(false)))
+	box.add_child(_pause_button(Locale.t("menu.settings"), func() -> void:
+		# Leaving the trial is the honest way to reach full settings: the panel
+		# lives in the main menu, so we return there rather than duplicating it.
+		get_tree().paused = false
+		SceneRouter.goto_menu()))
+	box.add_child(_pause_button(Locale.t("menu.back_to_menu"), func() -> void:
+		get_tree().paused = false
+		SceneRouter.goto_menu()))
+	box.add_child(_pause_button(Locale.t("menu.quit"), func() -> void:
+		SceneRouter.quit_game()))
+
+
+func _pause_button(text: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(240, 28)
+	b.add_theme_font_size_override("font_size", 12)
+	b.pressed.connect(func() -> void:
+		AudioDirector.play("ui_click", -8.0)
+		cb.call())
+	return b
+
+
+func _toggle_pause(force: int = -1) -> void:
+	paused = force == 1 if force >= 0 else not paused
+	pause_root.visible = paused
+	get_tree().paused = paused
+	root.mouse_filter = Control.MOUSE_FILTER_STOP if paused else Control.MOUSE_FILTER_IGNORE
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("pause"):
+		_toggle_pause()
+		get_viewport().set_input_as_handled()

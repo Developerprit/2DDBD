@@ -1,0 +1,14 @@
+# Godot editor cache and imported resources
+.godot/
+# Build output (the exe is 93 MB; rebuild with export_presets.cfg instead)
+build/
+# Temporary preview artefacts from the asset tooling
+_preview*.png
+_preview*.svg
+_prev_*.png
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store
+_preview*
+_prev_*

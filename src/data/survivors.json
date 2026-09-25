@@ -1,0 +1,50 @@
+{
+  "dwight": {
+    "id": "dwight",
+    "name_key": "char.dwight",
+    "sprite_set": "dwight",
+    "palette": {"skin": "#e8b98c", "hair": "#5b4636", "top": "#7a6a4f", "pants": "#3f4a5c", "accent": "#d9c27a"},
+    "title": {"en": "The Leader", "zh": "领袖"},
+    "personal_perk": "bond",
+    "bio": {
+      "en": "A nervous but dependable leader who always keeps an eye on his team.",
+      "zh": "紧张却可靠的队长，总是留意着队友的位置。"
+    }
+  },
+  "meg": {
+    "id": "meg",
+    "name_key": "char.meg",
+    "sprite_set": "meg",
+    "palette": {"skin": "#eec49a", "hair": "#d1622c", "top": "#c8452f", "pants": "#2f3742", "accent": "#f0e0c0"},
+    "title": {"en": "The Athlete", "zh": "运动员"},
+    "personal_perk": "sprint_burst",
+    "bio": {
+      "en": "A track star who outruns the killer instead of hiding from him.",
+      "zh": "田径明星，用速度甩开杀手，而不是躲着他。"
+    }
+  },
+  "claudette": {
+    "id": "claudette",
+    "name_key": "char.claudette",
+    "sprite_set": "claudette",
+    "palette": {"skin": "#6b4530", "hair": "#2a1c14", "top": "#4d6b45", "pants": "#3a3524", "accent": "#8fbf72"},
+    "title": {"en": "The Botanist", "zh": "植物学家"},
+    "personal_perk": "self_care",
+    "bio": {
+      "en": "A shy botanist who knows exactly which plants stop the bleeding.",
+      "zh": "害羞的植物学家，清楚哪些植物能止血。"
+    }
+  },
+  "jake": {
+    "id": "jake",
+    "name_key": "char.jake",
+    "sprite_set": "jake",
+    "palette": {"skin": "#d9a878", "hair": "#1f1a15", "top": "#3d4a52", "pants": "#26302e", "accent": "#6f8f6a"},
+    "title": {"en": "The Saboteur", "zh": "破坏者"},
+    "personal_perk": "saboteur",
+    "bio": {
+      "en": "A loner raised in the woods, comfortable sabotaging anything mechanical.",
+      "zh": "在森林里长大的独行者，拆任何机械都驾轻就熟。"
+    }
+  }
+}

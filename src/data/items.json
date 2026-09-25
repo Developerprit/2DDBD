@@ -1,0 +1,62 @@
+{
+  "medkit": {
+    "id": "medkit",
+    "kind": "MEDKIT",
+    "name": {"en": "Med-Kit", "zh": "医疗包"},
+    "desc": {"en": "Heal yourself or others far faster. Consumes charge.", "zh": "大幅加快治疗自己或队友的速度，消耗耐久。"},
+    "charges": 24.0,
+    "heal_speed_mult": 1.5,
+    "can_self_heal": true,
+    "rarity": 1,
+    "addons": [
+      {"id": "gauze_roll", "name": {"en": "Gauze Roll", "zh": "纱布卷"}, "desc": {"en": "+8 charges.", "zh": "耐久 +8。"}, "mods": {"charges": 8.0}},
+      {"id": "butterfly_tape", "name": {"en": "Butterfly Tape", "zh": "蝶形胶带"}, "desc": {"en": "Healing speed +20%.", "zh": "治疗速度 +20%。"}, "mods": {"heal_speed": 1.2}},
+      {"id": "gel_dressing", "name": {"en": "Gel Dressing", "zh": "凝胶敷料"}, "desc": {"en": "Revive downed survivors 40% faster.", "zh": "扶起倒地队友速度 +40%。"}, "mods": {"revive_speed": 1.4}}
+    ]
+  },
+  "flashlight": {
+    "id": "flashlight",
+    "kind": "FLASHLIGHT",
+    "name": {"en": "Flashlight", "zh": "手电筒"},
+    "desc": {"en": "Blind the killer with a focused beam, or interrupt a carry.", "zh": "用聚焦光束致盲杀手，或打断他扛人的动作。"},
+    "charges": 12.0,
+    "blind_time": 2.0,
+    "beam_range": 120.0,
+    "beam_arc": 14.0,
+    "rarity": 2,
+    "addons": [
+      {"id": "focus_lens", "name": {"en": "Focus Lens", "zh": "聚焦透镜"}, "desc": {"en": "Blind 30% longer but narrower beam.", "zh": "致盲时间 +30%，光束更窄。"}, "mods": {"blind": 1.3, "arc": -4.0}},
+      {"id": "wide_lens", "name": {"en": "Wide Lens", "zh": "广角透镜"}, "desc": {"en": "Wider beam, shorter blind.", "zh": "光束更宽，致盲更短。"}, "mods": {"arc": 8.0, "blind": 0.85}},
+      {"id": "battery", "name": {"en": "Heavy Battery", "zh": "重电池"}, "desc": {"en": "+6 charges.", "zh": "耐久 +6。"}, "mods": {"charges": 6.0}}
+    ]
+  },
+  "toolbox": {
+    "id": "toolbox",
+    "kind": "TOOLBOX",
+    "name": {"en": "Toolbox", "zh": "工具箱"},
+    "desc": {"en": "Repair generators faster and sabotage traps with ease.", "zh": "更快的修理速度，且能轻松破坏陷阱。"},
+    "charges": 30.0,
+    "repair_speed_mult": 1.35,
+    "trap_speed_mult": 1.5,
+    "rarity": 2,
+    "addons": [
+      {"id": "brand_new_part", "name": {"en": "Brand New Part", "zh": "全新零件"}, "desc": {"en": "Consumes 20 charges to instantly add 15% progress. Single use.", "zh": "消耗 20 耐久一次性增加 15% 进度。"}, "mods": {"instant": 0.15, "cost": 20.0}},
+      {"id": "wire_spool", "name": {"en": "Wire Spool", "zh": "线轴"}, "desc": {"en": "+12 charges.", "zh": "耐久 +12。"}, "mods": {"charges": 12.0}},
+      {"id": "cutters", "name": {"en": "Protective Cutters", "zh": "防护钳"}, "desc": {"en": "Skill check success zones are larger.", "zh": "技能检定成功区更大。"}, "mods": {"great_zone": 1.3}}
+    ]
+  },
+  "map": {
+    "id": "map",
+    "kind": "MAP",
+    "name": {"en": "Map", "zh": "地图"},
+    "desc": {"en": "Marks nearby objectives on your mini-map as you explore.", "zh": "探索时在小地图上标记附近的目标。"},
+    "charges": 20.0,
+    "reveal_radius": 50.0,
+    "rarity": 1,
+    "addons": [
+      {"id": "glass_bead", "name": {"en": "Glass Bead", "zh": "玻璃珠"}, "desc": {"en": "Reveals the hatch once it opens.", "zh": "地窖开启时自动标记。"}, "mods": {"hatch": 1}},
+      {"id": "mapping_paper", "name": {"en": "Mapping Paper", "zh": "绘图用纸"}, "desc": {"en": "+12 charges.", "zh": "耐久 +12。"}, "mods": {"charges": 12.0}},
+      {"id": "odd_stamp", "name": {"en": "Odd Stamp", "zh": "怪异印章"}, "desc": {"en": "Reveal radius +20 m.", "zh": "标记半径 +20 米。"}, "mods": {"radius": 20.0}}
+    ]
+  }
+}
