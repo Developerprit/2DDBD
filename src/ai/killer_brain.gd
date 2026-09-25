@@ -133,7 +133,12 @@ func _mode_chase(delta: float) -> void:
 		k.machine.force("attack")
 		return
 
-	goal = target.global_position
+	# Lead the target. Walking to where they *are* loses ground permanently against
+	# anyone running in a straight line, because they keep moving while you close --
+	# which is why the bots would trail a metre behind for an entire chase and only
+	# ever land a hit when the survivor ran into a wall.
+	var eta := dist / maxf(1.0, GameConfig.m(GameConfig.K_RUN))
+	goal = target.global_position + target.velocity * eta * 0.55
 	_follow(delta)
 
 	# Trapper drops a trap on the path when the chase is not going anywhere.
@@ -368,9 +373,13 @@ func _follow(delta: float) -> void:
 	k.move_input = dir
 	k.gait = Enums.Gait.RUN
 
-	# Automatic pallet breaking and window vaulting when the path is blocked.
+	# Break a pallet only when the path genuinely runs into it. The test used to be
+	# "is a dropped pallet within 1.1 tiles", so the killer would stop and spend 2.6 s
+	# smashing a board that merely happened to be nearby -- while his target kept
+	# running. Now the board has to be ahead of him, along the direction he is moving.
 	var p := k.nearest_breakable_pallet()
-	if p != null and k.global_position.distance_to(p.global_position) < GameConfig.TILE * 1.1:
+	if p != null and p.global_position.distance_to(k.global_position + dir * GameConfig.TILE) \
+			<= GameConfig.TILE * 0.9:
 		if k.machine.has_state("break_pallet"):
 			k.machine.force("break_pallet", {"target": p})
 		return

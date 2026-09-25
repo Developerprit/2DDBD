@@ -93,6 +93,28 @@ Clone it and you can reproduce the entire asset set byte for byte.
   and a red vignette bleeds into the killer's screen edges. Pallet stuns or genuinely
   losing the target reset it (with a 16 m grace window)
 
+### Opponent AI
+- **Survivors** divide the generators between themselves instead of stacking on one,
+  loop windows and pallets instead of running in a straight line, and slam a pallet
+  down when the killer is actually on them. Looping and pallets are the only things
+  that buy time -- the killer is faster, so a straight-line escape always ends badly.
+- **The killer** leads his target (aims at where they are *going*, not where they are)
+  and only breaks a pallet when it is genuinely across his path -- a board merely
+  nearby is not worth 2.6 seconds of standing still.
+- Bots play a full trial unaided: repair, get spotted, chase, vault, down, carry, hook,
+  sacrifice.
+
+### Opponent AI
+- **Survivors** divide the generators between themselves instead of stacking on one,
+  loop windows and pallets instead of running in a straight line, and slam a pallet
+  down when the killer is actually on them. Looping and pallets are the only things
+  that buy time -- the killer is faster, so a straight-line escape always ends badly.
+- **The killer** leads his target (aims at where they are *going*, not where they are)
+  and only breaks a pallet when it is genuinely across his path -- a board merely
+  nearby is not worth 2.6 seconds of standing still.
+- Bots play a full trial unaided: repair, get spotted, chase, vault, down, carry, hook,
+  sacrifice.
+
 ### Systems
 
 ### In game

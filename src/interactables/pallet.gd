@@ -2,19 +2,37 @@ class_name Pallet
 extends Interactable
 ## A wooden pallet wedged between two supports.
 ##
-##   STANDING  both teams can vault it (survivor 0.5 s / killer 1.5 s)
-##             survivors may drop it to block the killer
-##   DROPPED   survivors still vault it, the killer must break it (2.6 s)
-##   BROKEN    gone
+##   STANDING  upright and NOT in the way -- both teams walk straight past it.
+##             Survivors may slam it down to cut a loop short.
+##   DROPPED   lying across the gap, blocking the killer. Survivors vault it in
+##             0.5 s; the killer has to break it, which costs him 2.6 s.
+##   BROKEN    gone.
+##
+## THREE STATES, THREE SPRITES, ONE COLLIDER
+## -----------------------------------------
+## Two separate defects used to live here, and together they read to a player as one
+## confusing thing:
+##
+##   * STANDING built a collider, so an upright pallet sealed a doorway that should
+##     have been open -- "there is no pallet down, why can I not walk through";
+##   * DROPPED pointed at the `pallet_broken` texture, so the board looked smashed
+##     the moment it was put down -- "the model looks destroyed after I drop it".
+##
+## Only the dropped board blocks anything, and each state draws its own sprite.
 
 enum State { STANDING, DROPPED, BROKEN }
+
+## state -> prop sprite. A table, so the three states cannot drift apart.
+const SPRITES := {
+	State.STANDING: "pallet",
+	State.DROPPED: "pallet_dropped",
+	State.BROKEN: "pallet_broken",
+}
 
 var state: int = State.STANDING
 var direction: Vector2 = Vector2.RIGHT   ## axis the pallet spans
 var _stun_cooldown := 0.0
-
-var standing_tex: Texture2D
-var dropped_tex: Texture2D
+var _tex: Dictionary = {}
 
 
 func _build() -> void:
@@ -22,37 +40,42 @@ func _build() -> void:
 	prompt_key = "act.drop_pallet"
 	interact_radius = 20.0
 	super._build()
-	standing_tex = AnimBuilder.prop_texture("pallet")
-	dropped_tex = AnimBuilder.prop_texture("pallet_broken")
+
+	for st in SPRITES.keys():
+		_tex[st] = AnimBuilder.prop_texture(SPRITES[st])
 
 	sprite = Sprite2D.new()
-	sprite.texture = standing_tex
+	sprite.texture = _tex[State.STANDING]
 	add_child(sprite)
 	rotation = direction.angle()
-	_refresh_blocker()
+	_refresh()
 	set_process(true)
 
 
-func _refresh_blocker() -> void:
+## Applies the collider and the sprite for the current state.
+##
+## ONLY a dropped pallet is solid. An upright one is leaning in its frame, not
+## barring the gap: giving it a collider closes doorways the player can plainly see
+## through, which is exactly how this was reported.
+func _refresh() -> void:
 	if body != null:
 		for c in body.get_children():
 			c.queue_free()
-	# The blocker is written in local space, so the sprite rotation carries it.
-	if state == State.STANDING:
-		add_blocker(Vector2.ZERO, Vector2(30, 10))
-	elif state == State.DROPPED:
+	if state == State.DROPPED:
+		# Written in local space; the sprite rotation carries it.
 		add_blocker(Vector2.ZERO, Vector2(30, 14))
 	if sprite != null:
-		sprite.texture = standing_tex if state == State.STANDING else dropped_tex
+		sprite.texture = _tex.get(state, _tex[State.STANDING])
 
 
 func can_interact(actor: Node) -> bool:
 	if state == State.BROKEN:
 		return false
 	if actor.is_in_group("survivor"):
-		# Standing -> slam it down. Dropped -> vault over it.
+		# Upright -> slam it down. Dropped -> vault over it.
 		return true
 	if actor.is_in_group("killer"):
+		# The killer can only interact with a board that is actually in his way.
 		return state == State.DROPPED
 	return false
 
@@ -75,23 +98,39 @@ func interact_time(_actor: Node) -> float:
 
 func on_interact_start(actor: Node) -> void:
 	if actor.is_in_group("survivor") and state == State.STANDING:
-		drop()
+		drop(actor)
 
 
 func on_interact_complete(_actor: Node) -> void:
 	pass
 
 
-func drop() -> void:
+## Slams the pallet down.
+##
+## If the killer is standing in the gap the board lands on him. That stun is the
+## whole reason a survivor spends a pallet at this moment instead of saving it, and
+## nothing used to call try_stun() at all -- so the stun mechanic existed on paper
+## only.
+func drop(by_actor: Node = null) -> void:
 	if state != State.STANDING:
 		return
 	state = State.DROPPED
+	_refresh()
 	AudioDirector.play_at("pallet_drop", global_position, _camera())
 	EventBus.noise_emitted.emit(global_position, 260.0, "pallet")
-	_refresh_blocker()
+
 	var t := create_tween()
-	sprite.scale = Vector2(1.0, 1.5)
-	t.tween_property(sprite, "scale", Vector2.ONE, 0.16)
+	sprite.scale = Vector2(1.08, 1.08)
+	t.tween_property(sprite, "scale", Vector2.ONE, 0.15)
+
+	for n in get_tree().get_nodes_in_group("killer"):
+		var kk := n as Node2D
+		if kk == null or not is_instance_valid(kk):
+			continue
+		if kk.global_position.distance_to(global_position) <= GameConfig.TILE * 1.7:
+			try_stun(kk)
+	if by_actor != null and by_actor.has_method("on_pallet_dropped"):
+		by_actor.on_pallet_dropped(self)
 
 
 func break_pallet() -> void:
@@ -127,12 +166,15 @@ func landing_point(from_pos: Vector2) -> Vector2:
 	return global_position - normal * side * GameConfig.TILE * 2.4
 
 
+## Only a dropped pallet is worth vaulting. An upright one is not in the way, so
+## neither team should get a vault prompt on it -- the killer walking through an
+## open gap is correct behaviour, not a missing vault.
 func vaultable_by(actor: Node) -> bool:
 	if state == State.BROKEN:
 		return false
 	if actor.is_in_group("killer"):
-		return state == State.STANDING
-	return true
+		return false
+	return state == State.DROPPED
 
 
 func vault_time(actor: Node) -> float:

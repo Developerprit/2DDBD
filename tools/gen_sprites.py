@@ -768,6 +768,50 @@ def make_pallet_broken():
     return c
 
 
+def make_pallet_dropped():
+    """32 x 14 fallen pallet: the same board, now lying flat across the gap.
+
+    Three states need three sprites -- upright, lying flat and intact, and smashed.
+    The dropped state used to point at the broken sprite, so a pallet looked
+    shattered the instant it was put down.
+
+    "Lying flat" is communicated with a contact shadow underneath and planks a shade
+    darker than the standing version: it is in the killer's shadow now and no longer
+    catching light on a top edge.
+    """
+    c = Canvas(32, 14)
+    shadow = rgba("#000000", 95)
+    wood = rgba("#7d5f35")
+    wood_alt = rgba("#6d5230")
+    steel = rgba("#767c85")
+    steel_dark = rgba("#4a5057")
+
+    # Contact shadow underneath, tight against the planks so it reads as the board
+    # sitting on the ground rather than as a separate bar.
+    c.rect(1, 10, 30, 11, shadow)
+
+    # Four planks running the width of the gap.
+    for i in range(4):
+        y = 2 + i * 2
+        base = wood if i % 2 == 0 else wood_alt
+        c.rect(0, y, 31, y + 1, base)
+        c.rect(0, y, 31, y, shade(base, 1.14))
+        c.rect(0, y + 1, 31, y + 1, shade(base, 0.76))
+
+    # Board ends.
+    c.rect(0, 2, 1, 9, shade(wood, 0.72))
+    c.rect(30, 2, 31, 9, shade(wood, 0.72))
+
+    # Steel straps, muted because they are not catching the light any more.
+    for x in (5, 25):
+        c.rect(x, 2, x + 1, 9, steel_dark)
+        c.rect(x, 2, x, 9, steel)
+        c.set(x, 3, shade(steel, 1.2))
+        c.set(x + 1, 7, shade(steel_dark, 0.85))
+
+    return c
+
+
 def make_window():
     """32 x 10 window punched through a wall.
 
@@ -1336,6 +1380,7 @@ def main():
         "generator": make_generator(),
         "hook": make_hook(),
         "pallet": make_pallet(),
+        "pallet_dropped": make_pallet_dropped(),
         "pallet_broken": make_pallet_broken(),
         "window": make_window(),
         "locker": make_locker(),

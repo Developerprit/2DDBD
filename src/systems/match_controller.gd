@@ -109,6 +109,8 @@ func _begin() -> void:
 				_dump_map = true
 			"--test-vault":
 				_test_vault = true
+			"--test-pallet":
+				_test_pallet = true
 	var uargs := OS.get_cmdline_user_args()
 	for i in uargs.size():
 		if uargs[i] == "--map" and i + 1 < uargs.size():
@@ -128,6 +130,9 @@ func _begin() -> void:
 	# machine, the collision body and the destination snap.
 	if _test_vault:
 		_run_vault_test()
+		return
+	if _test_pallet:
+		_run_pallet_test()
 		return
 	_setup_camera()
 	AudioDirector.start_ambient()
@@ -651,6 +656,7 @@ var _debug_match := false
 var _debug_timer := 0.0
 var _dump_map := false
 var _test_vault := false
+var _test_pallet := false
 var _vault_counter := 0
 var _web_checked := false
 
@@ -815,6 +821,61 @@ func _run_vault_test() -> void:
 	get_tree().quit()
 
 
+## Asserts the three pallet states are actually three different objects: an upright
+## board must not be solid, a dropped one must be, and each has to draw its own
+## sprite.
+##
+## Both of these were broken at once and reported as a single confusing symptom --
+## "an undropped pallet blocks me, and a dropped one looks smashed" -- so they get a
+## check that cannot silently regress.
+func _run_pallet_test() -> void:
+	if pallets.is_empty():
+		print("[pallet-test] no pallets on this realm")
+		get_tree().quit()
+		return
+	var p: Pallet = pallets[0]
+	var cases := [
+		[Pallet.State.STANDING, "pallet", false],
+		[Pallet.State.DROPPED, "pallet_dropped", true],
+		[Pallet.State.BROKEN, "pallet_broken", false],
+	]
+	var names := ["STANDING", "DROPPED", "BROKEN"]
+	var seen: Dictionary = {}
+	var all_ok := true
+
+	for i in cases.size():
+		var st: int = cases[i][0]
+		var want_tex: String = cases[i][1]
+		var want_solid: bool = cases[i][2]
+		p.state = st
+		p._refresh()
+		await get_tree().physics_frame
+
+		var solids := 0
+		if p.body != null:
+			for c in p.body.get_children():
+				if c is CollisionShape2D and not c.is_queued_for_deletion():
+					solids += 1
+		var tex := ""
+		if p.sprite != null and p.sprite.texture != null:
+			tex = p.sprite.texture.resource_path.get_file().get_basename()
+
+		var solid_ok := (solids > 0) == want_solid
+		var tex_ok := tex == want_tex
+		if not (solid_ok and tex_ok):
+			all_ok = false
+		seen[tex] = true
+		print("[pallet-test] %-8s colliders=%d (want %s)  sprite=%s (want %s)  %s"
+				% [names[i], solids, "solid" if want_solid else "none",
+				tex, want_tex, "PASS" if solid_ok and tex_ok else "FAIL"])
+
+	var distinct := seen.size() == 3
+	print("[pallet-test] distinct sprites: %d/3  %s"
+			% [seen.size(), "PASS" if distinct else "FAIL"])
+	print("[pallet-test] RESULT: %s" % ("PASS" if all_ok and distinct else "FAIL"))
+	get_tree().quit()
+
+
 func _dump_map_now() -> void:
 	var dir := "user://"
 	MapDump.report(map_data, self)
@@ -836,6 +897,14 @@ func _debug_log() -> void:
 	"""Headless soak-test instrumentation: prints enough to prove the match is
 	actually progressing (bots repairing, the killer hunting, the hook cycle)."""
 	var parts: Array = []
+	# How many pallets have been spent. This is the clearest single signal that the
+	# survivor bots have learned to use them at all -- before this they left every
+	# single board standing for the entire trial.
+	var spent := 0
+	for pl in pallets:
+		if is_instance_valid(pl) and (pl as Pallet).state != Pallet.State.STANDING:
+			spent += 1
+	parts.append("pallets=%d/%d" % [spent, pallets.size()])
 	for sv in survivors:
 		# Include the state machine name: it is the only way to see from a log
 		# whether vaulting / repair / carry are actually firing.

@@ -29,6 +29,9 @@ const ARRIVE_DIST := 12.0
 var _anchor_pos := Vector2.ZERO
 var _anchor_time := 0.0
 var _unstick_count := 0
+## Which way the bot runs around a loop obstacle. Picked once and then kept, so it
+## commits to a direction instead of jittering between the two.
+var _orbit_sign := 0.0
 
 
 func _init(survivor: Survivor) -> void:
@@ -124,6 +127,10 @@ func _decide(delta: float) -> void:
 	if danger:
 		_set_goal("flee")
 		flee_timer = 4.0
+		# Spend a pallet when he is actually on us. Slamming a board down is the single
+		# most effective thing a survivor can do in a chase, and the bots never did it
+		# at all -- they would run straight past a ready pallet and be caught in the open.
+		_maybe_drop_pallet(killer_dist)
 		_choose_flee_point()
 		return
 
@@ -232,6 +239,30 @@ func _do_down_state(delta: float) -> void:
 	s.gait = Enums.Gait.CRAWL
 
 
+## Slams down an upright pallet when the killer is closing and we are standing in one.
+##
+## Two conditions, both necessary: he has to be close enough that the board will
+## actually buy time, and we have to be *on* the pallet (the drop is instant, it is
+## not a "run to the pallet first" action -- that would just feed the killer a free
+## hit). Anything further out is a pallet saved for later.
+func _maybe_drop_pallet(killer_dist: float) -> void:
+	if killer_dist > GameConfig.TILE * 5.0:
+		return
+	var best: Pallet = null
+	var best_d := GameConfig.TILE * 1.7
+	for n in s.get_tree().get_nodes_in_group("interactable"):
+		var p := n as Pallet
+		if p == null or not is_instance_valid(p) or p.state != Pallet.State.STANDING:
+			continue
+		var d := s.global_position.distance_to(p.global_position)
+		if d < best_d:
+			best_d = d
+			best = p
+	if best == null:
+		return
+	best.drop(s)
+
+
 func _choose_flee_point() -> void:
 	var killer := _killer()
 	if killer == null:
@@ -255,27 +286,53 @@ func _choose_flee_point() -> void:
 		away = Vector2.RIGHT
 	away = away.normalized()
 
-	# Prefer a nearby window or pallet to run, falling back to open space.
-	var best: Vector2 = s.global_position + away * GameConfig.TILE * 12.0
+	# Prefer a nearby vault point, and *orbit* it rather than parking on it.
+	#
+	# This is the whole difference between a chase that lasts twenty seconds and one
+	# that lasts two. A survivor cannot outrun the killer -- he is faster -- so the
+	# only thing that buys time is making him turn. Running to a pallet and then
+	# standing beside it, which is what the bots used to do, achieves nothing at all.
+	var killer_pos := (killer as Node2D).global_position
+	var loop_spot := Vector2.ZERO
 	var best_score := -1e9
 	for n in s.get_tree().get_nodes_in_group("interactable"):
 		var it := n as Interactable
-		if it == null:
+		if it == null or not is_instance_valid(it):
+			continue
+		if it is Pallet and (it as Pallet).state == Pallet.State.BROKEN:
 			continue
 		if not (it is Pallet or it is WindowVault):
 			continue
 		var d := s.global_position.distance_to(it.global_position)
 		if d > GameConfig.TILE * 16.0:
 			continue
-		# Must not run towards the killer.
+		# Must not be towards the killer.
 		var towards := (it.global_position - s.global_position).normalized()
 		if towards.dot(away) < 0.1:
 			continue
 		var score := 40.0 - d * 0.05
 		if score > best_score:
 			best_score = score
-			best = it.global_position + towards * GameConfig.TILE * 1.5
-	goal = best
+			loop_spot = it.global_position
+	if best_score > -1e8:
+		goal = _orbit(loop_spot, killer_pos)
+		return
+	goal = s.global_position + away * GameConfig.TILE * 12.0
+
+
+## A point on a circle around a loop spot: on the far side of it from the killer, and
+## offset along the tangent so the bot keeps moving around the obstacle instead of
+## standing on the spot facing him.
+func _orbit(spot: Vector2, killer_pos: Vector2) -> Vector2:
+	var radius := GameConfig.TILE * 2.4
+	var away_v := spot - killer_pos
+	if away_v.length() < 1.0:
+		away_v = Vector2.RIGHT
+	away_v = away_v.normalized()
+	if is_zero_approx(_orbit_sign):
+		_orbit_sign = -1.0 if randf() < 0.5 else 1.0
+	var tangent := Vector2(-away_v.y, away_v.x)
+	return spot + away_v * radius + tangent * (_orbit_sign * radius * 1.3)
 
 
 func _random_point_near(from: Vector2, radius: float) -> Vector2:
@@ -335,18 +392,42 @@ func _find_hooked_teammate() -> Survivor:
 	return null
 
 
+## Picks a generator to work on.
+##
+## Not simply the nearest one. With five machines to finish and four survivors, two
+## bots converging on the same generator wastes one of them entirely -- and the reason
+## survivors lose is running out of time. A machine a teammate is already on is heavily
+## discounted, and progress already banked is worth a small detour.
 func _nearest_generator(from: Vector2) -> Generator:
 	var best: Generator = null
-	var best_d := 1e9
+	var best_score := -1e9
 	for n in s.get_tree().get_nodes_in_group("interactable"):
 		var g := n as Generator
 		if g == null or g.completed:
 			continue
 		var d := from.distance_to(g.global_position)
-		if d < best_d:
-			best_d = d
+		var score := -d
+		if _workers_on(g) > 0:
+			score -= GameConfig.TILE * 20.0
+		# A machine that is nearly done is the best target: finishing one beats
+		# starting another, and it is the one the killer is about to come and defend.
+		score += clampf(g.progress, 0.0, 1.0) * GameConfig.TILE * 8.0
+		if score > best_score:
+			best_score = score
 			best = g
 	return best
+
+
+## How many *other* survivors are currently working this generator.
+func _workers_on(g: Generator) -> int:
+	var count := 0
+	for n in s.get_tree().get_nodes_in_group("survivor"):
+		var other := n as Survivor
+		if other == null or other == s or not is_instance_valid(other):
+			continue
+		if other.interact_target == g:
+			count += 1
+	return count
 
 
 # ---------------------------------------------------------------------------

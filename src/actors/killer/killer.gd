@@ -362,11 +362,8 @@ func _try_traverse() -> void:
 		machine.force("vault", {"target": w, "time": w.vault_time(self),
 				"end": w.landing_point(global_position)})
 		return
-	var standing := _nearest_pallet_in_state(Pallet.State.STANDING)
-	if standing != null:
-		machine.force("vault", {"target": standing, "time": standing.vault_time(self),
-				"end": standing.landing_point(global_position)})
-		return
+	# Upright pallets are deliberately ignored: they are not in the way, so there is
+	# nothing to vault. Only a board lying across the gap has to be broken.
 	var dropped := nearest_breakable_pallet()
 	if dropped != null:
 		machine.force("break_pallet", {"target": dropped})

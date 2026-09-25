@@ -801,6 +801,11 @@
       "h": 14
     },
     {
+      "name": "pallet_dropped",
+      "w": 32,
+      "h": 14
+    },
+    {
       "name": "pallet_broken",
       "w": 32,
       "h": 10
