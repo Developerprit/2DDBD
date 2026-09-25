@@ -39,6 +39,10 @@ var _unstick_count := 0
 
 ## Debug counter: how often the killer switched to following scratch marks.
 static var scratch_follows := 0
+## Debug counter: generators the bot has damaged.
+static var gens_kicked := 0
+## Debug counter: how often the killer cut across a loop instead of tracing it.
+static var loop_cuts := 0
 static var last_mode := 0
 
 const REPATH_INTERVAL := 0.7
@@ -102,6 +106,15 @@ func think(delta: float) -> void:
 			scratch_follows += 1
 		last_mode = mode
 
+	# Wraith: phase out while roaming (faster, silent, no red stain) and phase
+	# back in the instant a survivor is in reach so the swing can actually land.
+	if k.char_id == "wraith":
+		if mode == Mode.CHASE:
+			if k.is_cloaked():
+				k.request_power()
+		elif not k.is_cloaked():
+			k.request_power()
+
 	match mode:
 		Mode.CHASE:
 			_mode_chase(delta)
@@ -139,6 +152,17 @@ func _mode_chase(delta: float) -> void:
 	# ever land a hit when the survivor ran into a wall.
 	var eta := dist / maxf(1.0, GameConfig.m(GameConfig.K_RUN))
 	goal = target.global_position + target.velocity * eta * 0.55
+
+	# Cutting the loop. Tracing a survivor around a window or a pallet is a losing
+	# race: he is turning tighter than you and every lap costs you the same distance
+	# you just made up. If he is looping something and you are on the same side of
+	# that obstacle as he is, walk to where he will *come out* instead.
+	if dist < GameConfig.TILE * 12.0:
+		var cut := _loop_cut(target.global_position)
+		if cut != Vector2.ZERO:
+			goal = cut
+			loop_cuts += 1
+
 	_follow(delta)
 
 	# Trapper drops a trap on the path when the chase is not going anywhere.
@@ -148,10 +172,55 @@ func _mode_chase(delta: float) -> void:
 			k.machine.force("place_trap", {"mode": "place"})
 
 
+## The mirror of the target through the loop obstacle they are using. Walking to
+## that point meets them as they come round, which is shorter than following; if it
+## is not shorter (they are on the far side already), returns ZERO and the chase
+## carries on normally.
+func _loop_cut(target_pos: Vector2) -> Vector2:
+	var mc := MatchController.instance
+	if mc == null:
+		return Vector2.ZERO
+	var loop := Vector2.ZERO
+	var best_d := GameConfig.TILE * 7.0
+	for n in k.get_tree().get_nodes_in_group("interactable"):
+		var it := n as Interactable
+		if it == null or not is_instance_valid(it):
+			continue
+		if it is Pallet and (it as Pallet).state == Pallet.State.BROKEN:
+			continue
+		if not (it is Pallet or it is WindowVault):
+			continue
+		var d := target_pos.distance_to(it.global_position)
+		if d < best_d:
+			best_d = d
+			loop = it.global_position
+	if loop == Vector2.ZERO:
+		return Vector2.ZERO
+
+	# Only cut when we are on the same side of the obstacle as the survivor. If he
+	# is already on the far side, mirroring would send us backwards.
+	var side_target := (target_pos - loop).normalized()
+	var side_us := (k.global_position - loop).normalized()
+	if side_target.dot(side_us) < 0.25:
+		return Vector2.ZERO
+
+	var mirror := loop * 2.0 - target_pos
+	# Sanity: the cut has to be reachable and not meaningfully longer than following.
+	if mirror.distance_to(k.global_position) > 			target_pos.distance_to(k.global_position) * 1.15:
+		return Vector2.ZERO
+	# And it has to be walkable, or the pathfinder sends us round the world.
+	var cell := mc.nearest_open_cell(Utils.tile_of(mirror))
+	if cell.x < 0:
+		return Vector2.ZERO
+	return Utils.tile_center(cell)
+
+
 ## Walks the freshest scratch trail. Scratch marks only live for ten seconds,
 ## so anything inside 16 m is genuinely recent -- this is what turns "he ran off
 ## somewhere" into an actual pursuit.
 func _mode_scratch(delta: float) -> void:
+	if _try_kick():
+		return
 	var lead := _scratch_lead(GameConfig.SCRATCH_FOLLOW_RADIUS)
 	if lead == Vector2.ZERO:
 		mode = Mode.SEARCH
@@ -226,7 +295,32 @@ func _mode_search(delta: float) -> void:
 	_follow(delta)
 
 
+## Damages a generator the bot is standing next to. Kicking is free pressure and
+## the bot never did it at all, which meant a survivor tapping a generator had
+## effectively finished it.
+func _try_kick() -> bool:
+	if k.is_carrying or k.machine.current_name != "move":
+		return false
+	if not k.machine.has_state("damage_gen"):
+		return false
+	for n in k.get_tree().get_nodes_in_group("interactable"):
+		var g := n as Generator
+		if g == null or not is_instance_valid(g) or not g.can_be_kicked_by(k):
+			continue
+		# Below ~12% it is not worth 1.8 seconds of standing still.
+		if g.progress < 0.12:
+			continue
+		if k.global_position.distance_to(g.global_position) > GameConfig.TILE * 1.4:
+			continue
+		gens_kicked += 1
+		k.machine.force("damage_gen", {"target": g})
+		return true
+	return false
+
+
 func _mode_patrol(delta: float) -> void:
+	if _try_kick():
+		return
 	_patrol_hold -= delta
 	if _patrol_hold <= 0.0:
 		_patrol_hold = randf_range(6.0, 11.0)

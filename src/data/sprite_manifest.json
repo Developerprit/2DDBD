@@ -657,6 +657,170 @@
       }
     },
     {
+      "name": "feng_min",
+      "frame_w": 16,
+      "frame_h": 22,
+      "rows": [
+        {
+          "anim": "idle_down",
+          "frames": 2,
+          "row": 0,
+          "facing": "down"
+        },
+        {
+          "anim": "idle_up",
+          "frames": 2,
+          "row": 1,
+          "facing": "up"
+        },
+        {
+          "anim": "idle_side",
+          "frames": 2,
+          "row": 2,
+          "facing": "side"
+        },
+        {
+          "anim": "walk_down",
+          "frames": 4,
+          "row": 3,
+          "facing": "down"
+        },
+        {
+          "anim": "walk_up",
+          "frames": 4,
+          "row": 4,
+          "facing": "up"
+        },
+        {
+          "anim": "walk_side",
+          "frames": 4,
+          "row": 5,
+          "facing": "side"
+        },
+        {
+          "anim": "run_down",
+          "frames": 6,
+          "row": 6,
+          "facing": "down"
+        },
+        {
+          "anim": "run_up",
+          "frames": 6,
+          "row": 7,
+          "facing": "up"
+        },
+        {
+          "anim": "run_side",
+          "frames": 6,
+          "row": 8,
+          "facing": "side"
+        },
+        {
+          "anim": "crouch_down",
+          "frames": 2,
+          "row": 9,
+          "facing": "down"
+        },
+        {
+          "anim": "crouch_up",
+          "frames": 2,
+          "row": 10,
+          "facing": "up"
+        },
+        {
+          "anim": "crouch_side",
+          "frames": 2,
+          "row": 11,
+          "facing": "side"
+        },
+        {
+          "anim": "crouchwalk_down",
+          "frames": 4,
+          "row": 12,
+          "facing": "down"
+        },
+        {
+          "anim": "crouchwalk_up",
+          "frames": 4,
+          "row": 13,
+          "facing": "up"
+        },
+        {
+          "anim": "crouchwalk_side",
+          "frames": 4,
+          "row": 14,
+          "facing": "side"
+        },
+        {
+          "anim": "vault_down",
+          "frames": 4,
+          "row": 15,
+          "facing": "down"
+        },
+        {
+          "anim": "vault_up",
+          "frames": 4,
+          "row": 16,
+          "facing": "up"
+        },
+        {
+          "anim": "vault_side",
+          "frames": 4,
+          "row": 17,
+          "facing": "side"
+        },
+        {
+          "anim": "repair",
+          "frames": 2,
+          "row": 18,
+          "facing": "down"
+        },
+        {
+          "anim": "heal",
+          "frames": 2,
+          "row": 19,
+          "facing": "down"
+        },
+        {
+          "anim": "downed",
+          "frames": 2,
+          "row": 20,
+          "facing": "side"
+        },
+        {
+          "anim": "hooked",
+          "frames": 2,
+          "row": 21,
+          "facing": "down"
+        },
+        {
+          "anim": "struggle",
+          "frames": 2,
+          "row": 22,
+          "facing": "down"
+        },
+        {
+          "anim": "carried",
+          "frames": 2,
+          "row": 23,
+          "facing": "side"
+        },
+        {
+          "anim": "dead",
+          "frames": 2,
+          "row": 24,
+          "facing": "down"
+        }
+      ],
+      "palette": {
+        "skin": "#e8b98c",
+        "hair": "#15110d",
+        "top": "#1f8a8c",
+        "pants": "#2b2f33",
+        "accent": "#e0b020"
+      }
+    },
+    {
       "name": "trapper",
       "frame_w": 24,
       "frame_h": 30,
@@ -781,7 +945,156 @@
           "row": 19,
           "facing": "down"
         }
-      ]
+      ],
+      "palette": {
+        "skin": "#b8937a",
+        "hair": "#2a221c",
+        "top": "#4a5049",
+        "pants": "#3d3d37",
+        "accent": "#7a5a34",
+        "mask": "#70726c",
+        "weapon_col": "#c4cad0",
+        "carry_col": "#5a4a42",
+        "carry_skin": "#c99a72"
+      }
+    },
+    {
+      "name": "wraith",
+      "frame_w": 24,
+      "frame_h": 30,
+      "rows": [
+        {
+          "anim": "idle_down",
+          "frames": 2,
+          "row": 0,
+          "facing": "down"
+        },
+        {
+          "anim": "idle_up",
+          "frames": 2,
+          "row": 1,
+          "facing": "up"
+        },
+        {
+          "anim": "idle_side",
+          "frames": 2,
+          "row": 2,
+          "facing": "side"
+        },
+        {
+          "anim": "walk_down",
+          "frames": 4,
+          "row": 3,
+          "facing": "down"
+        },
+        {
+          "anim": "walk_up",
+          "frames": 4,
+          "row": 4,
+          "facing": "up"
+        },
+        {
+          "anim": "walk_side",
+          "frames": 4,
+          "row": 5,
+          "facing": "side"
+        },
+        {
+          "anim": "chase_down",
+          "frames": 6,
+          "row": 6,
+          "facing": "down"
+        },
+        {
+          "anim": "chase_up",
+          "frames": 6,
+          "row": 7,
+          "facing": "up"
+        },
+        {
+          "anim": "chase_side",
+          "frames": 6,
+          "row": 8,
+          "facing": "side"
+        },
+        {
+          "anim": "attack_down",
+          "frames": 4,
+          "row": 9,
+          "facing": "down"
+        },
+        {
+          "anim": "attack_up",
+          "frames": 4,
+          "row": 10,
+          "facing": "up"
+        },
+        {
+          "anim": "attack_side",
+          "frames": 4,
+          "row": 11,
+          "facing": "side"
+        },
+        {
+          "anim": "lunge_down",
+          "frames": 3,
+          "row": 12,
+          "facing": "down"
+        },
+        {
+          "anim": "lunge_side",
+          "frames": 3,
+          "row": 13,
+          "facing": "side"
+        },
+        {
+          "anim": "carry_down",
+          "frames": 2,
+          "row": 14,
+          "facing": "down"
+        },
+        {
+          "anim": "carry_side",
+          "frames": 2,
+          "row": 15,
+          "facing": "side"
+        },
+        {
+          "anim": "stun",
+          "frames": 2,
+          "row": 16,
+          "facing": "down"
+        },
+        {
+          "anim": "place_down",
+          "frames": 3,
+          "row": 17,
+          "facing": "down"
+        },
+        {
+          "anim": "pickup_side",
+          "frames": 2,
+          "row": 18,
+          "facing": "side"
+        },
+        {
+          "anim": "hooking_down",
+          "frames": 3,
+          "row": 19,
+          "facing": "down"
+        }
+      ],
+      "palette": {
+        "skin": "#cfc6bd",
+        "hair": "#20242a",
+        "top": "#b9c2c8",
+        "pants": "#6f7780",
+        "accent": "#d8e0e6",
+        "mask": "#aeb6bc",
+        "weapon_col": "#c4cad0",
+        "carry_col": "#5a4a42",
+        "carry_skin": "#c99a72"
+      }
     }
   ],
   "props": [

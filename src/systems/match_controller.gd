@@ -111,10 +111,20 @@ func _begin() -> void:
 				_test_vault = true
 			"--test-pallet":
 				_test_pallet = true
+			"--test-kick":
+				_test_kick = true
+			"--test-instinct":
+				_test_instinct = true
+			"--no-random-char":
+				_no_random_chars = true
 	var uargs := OS.get_cmdline_user_args()
 	for i in uargs.size():
 		if uargs[i] == "--map" and i + 1 < uargs.size():
 			map_id = uargs[i + 1]
+		if uargs[i] == "--killer" and i + 1 < uargs.size():
+			GameConfig.selected_killer = uargs[i + 1]
+		if uargs[i] == "--survivor" and i + 1 < uargs.size():
+			GameConfig.selected_survivor = uargs[i + 1]
 	GameConfig.player_role = player_role
 
 	_build_realm(seed_value)
@@ -133,6 +143,12 @@ func _begin() -> void:
 		return
 	if _test_pallet:
 		_run_pallet_test()
+		return
+	if _test_kick:
+		_run_kick_test()
+		return
+	if _test_instinct:
+		_run_instinct_test()
 		return
 	_setup_camera()
 	AudioDirector.start_ambient()
@@ -394,11 +410,20 @@ func _spawn_actors() -> void:
 	var surv_points: Array = spawns.get("survivors", [])
 	var killer_point: Vector2 = spawns.get("killer", Vector2(GameConfig.MAP_SIZE * 0.5, 50))
 
-	var roster := ["dwight", "meg", "claudette", "jake"]
-	var player_char := GameConfig.selected_survivor
-	if player_role == Enums.Team.SURVIVOR:
-		roster.erase(player_char)
-		roster.insert(0, player_char)
+	# Per-match random line-up. The user asked for a fresh cast every trial and
+	# explicitly allowed duplicates, so each of the four survivor slots is an
+	# independent draw from the whole survivor pool -- the same character can
+	# appear more than once.
+	var surv_pool: Array = GameConfig.survivors.keys()
+	var roster: Array = []
+	for i in 4:
+		roster.append(surv_pool[randi() % surv_pool.size()])
+	# The human (when playing survivor) controls roster[0]; that slot is already a
+	# random draw, so no special-casing is needed.
+
+	# The killer is a random draw from the killer pool as well.
+	var killer_pool: Array = GameConfig.killers.keys()
+	GameConfig.selected_killer = killer_pool[randi() % killer_pool.size()]
 
 	var idx := 0
 	for i in 4:
@@ -657,6 +682,9 @@ var _debug_timer := 0.0
 var _dump_map := false
 var _test_vault := false
 var _test_pallet := false
+var _test_kick := false
+var _test_instinct := false
+var _no_random_chars := false
 var _vault_counter := 0
 var _web_checked := false
 
@@ -876,6 +904,173 @@ func _run_pallet_test() -> void:
 	get_tree().quit()
 
 
+## Generator damage. The original's numbers are: 1.8 s, -5% instantly, then
+## -0.25 charges/s until a survivor works on it again, 8 regression events max.
+func _run_kick_test() -> void:
+	if generators.is_empty():
+		print("[kick-test] no generators on this realm")
+		get_tree().quit()
+		return
+	if killer == null or not is_instance_valid(killer):
+		print("[kick-test] no killer")
+		get_tree().quit()
+		return
+
+	var all_ok := true
+	var g: Generator = generators[0]
+	g.completed = false
+	g.regression_events = 0
+	g.regressing = false
+	g.progress = 0.50
+	var before := g.progress
+
+	# --- 1. a kick costs exactly 5% and starts the bleed --------------------
+	g.damage_by_killer(killer)
+	var lost := before - g.progress
+	var ok1: bool = is_equal_approx(lost, GameConfig.GEN_DAMAGE_LOSS) and g.regressing 			and g.regression_events == 1
+	all_ok = all_ok and ok1
+	print("[kick-test] loss=%.3f (want %.3f)  regressing=%s  events=%d  %s"
+			% [lost, GameConfig.GEN_DAMAGE_LOSS, str(g.regressing), g.regression_events,
+			"PASS" if ok1 else "FAIL"])
+
+	# --- 2. it bleeds on its own -------------------------------------------
+	var p1 := g.progress
+	for i in 30:
+		await get_tree().physics_frame
+	var p2 := g.progress
+	var ok2: bool = p2 < p1 - 0.001 and g.regressing
+	all_ok = all_ok and ok2
+	print("[kick-test] bleed %.4f -> %.4f over 30 frames  %s"
+			% [p1, p2, "PASS" if ok2 else "FAIL"])
+
+	# --- 3. a survivor working on it stops the bleed ------------------------
+	var sv: Survivor = null
+	for s in survivors:
+		if is_instance_valid(s) and s.health == Enums.Health.HEALTHY:
+			sv = s
+			break
+	if sv != null:
+		g.on_interact_tick(sv, 0.016)
+	var ok3: bool = not g.regressing or sv == null
+	all_ok = all_ok and ok3
+	print("[kick-test] repair stops regression=%s  %s"
+			% [str(not g.regressing), "PASS" if ok3 else "FAIL"])
+
+	# --- 4. the regression event cap actually caps --------------------------
+	g.progress = 0.80
+	g.completed = false
+	while g.regression_events < GameConfig.GEN_REGRESSION_LIMIT:
+		var was := g.regression_events
+		g.damage_by_killer(killer)
+		if g.regression_events == was:
+			break
+	var at_cap: bool = not g.can_be_kicked_by(killer)
+	var nine: int = g.regression_events
+	g.damage_by_killer(killer)
+	var ok4: bool = at_cap and g.regression_events == nine 			and nine == GameConfig.GEN_REGRESSION_LIMIT
+	all_ok = all_ok and ok4
+	print("[kick-test] cap reached at %d events, 9th rejected=%s  %s"
+			% [nine, str(g.regression_events == nine), "PASS" if ok4 else "FAIL"])
+
+	# --- 5. finished and untouched generators refuse a kick ----------------
+	var g2: Generator = generators[mini(1, generators.size() - 1)]
+	g2.completed = true
+	var ok5a: bool = not g2.can_be_kicked_by(killer)
+	g2.completed = false
+	g2.progress = 0.0
+	g2.regression_events = 0
+	var ok5b: bool = not g2.can_be_kicked_by(killer)
+	var ok5: bool = ok5a and ok5b
+	all_ok = all_ok and ok5
+	print("[kick-test] finished rejected=%s  untouched rejected=%s  %s"
+			% [str(ok5a), str(ok5b), "PASS" if ok5 else "FAIL"])
+
+	print("[kick-test] RESULT: %s" % ("PASS" if all_ok else "FAIL"))
+	get_tree().quit()
+
+
+## Killer Instinct. It must only ever yield survivors -- never a generator, the
+## hatch or a gate -- and only for as long as a power says so.
+func _run_instinct_test() -> void:
+	if killer == null or not is_instance_valid(killer):
+		print("[instinct-test] no killer")
+		get_tree().quit()
+		return
+	if survivors.is_empty():
+		print("[instinct-test] no survivors")
+		get_tree().quit()
+		return
+
+	var all_ok := true
+
+	# --- 1. nothing is revealed before a power triggers it -----------------
+	var ok1: bool = killer.instinct_active().is_empty()
+	all_ok = all_ok and ok1
+	print("[instinct-test] silent until triggered=%s  %s"
+			% [str(ok1), "PASS" if ok1 else "FAIL"])
+
+	# --- 2. revealing one survivor yields exactly that survivor -----------
+	var far: Survivor = null
+	for s in survivors:
+		if is_instance_valid(s) and s.health == Enums.Health.HEALTHY:
+			far = s
+			break
+	if far != null:
+		killer.instinct_reveal(far, 2.0)
+	var active := killer.instinct_active()
+	var only_survivors := true
+	for n in active:
+		var sv := n as Node
+		if sv == null or not sv.is_in_group("survivor"):
+			only_survivors = false
+	var ok2: bool = active.size() == 1 and active[0] == far and only_survivors
+	all_ok = all_ok and ok2
+	print("[instinct-test] revealed=%d, all survivors=%s  %s"
+			% [active.size(), str(only_survivors), "PASS" if ok2 else "FAIL"])
+
+	# --- 3. anything that is not a live survivor is refused ---------------
+	var dead: Survivor = null
+	for s in survivors:
+		if is_instance_valid(s) and s != far:
+			dead = s
+			break
+	var ok3 := true
+	if dead != null:
+		var was: int = killer.instinct_active().size()
+		dead.health = Enums.Health.DEAD
+		killer.instinct_reveal(dead, 5.0)
+		ok3 = killer.instinct_active().size() == was
+		dead.health = Enums.Health.HEALTHY
+	all_ok = all_ok and ok3
+	print("[instinct-test] dead survivor refused=%s  %s"
+			% [str(ok3), "PASS" if ok3 else "FAIL"])
+
+	# --- 4. placing a trap flushes out only those actually in range -------
+	for n in killer.instinct_active():
+		killer._instinct.clear()
+		break
+	var near: Survivor = survivors[0] as Survivor
+	var keep := near.global_position
+	near.global_position = killer.global_position + Vector2(GameConfig.TILE * 3.0, 0)
+	for s2 in survivors:
+		if s2 == near or not is_instance_valid(s2):
+			continue
+		s2.global_position = killer.global_position + Vector2(0, GameConfig.TILE * 40.0)
+	killer.place_trap()
+	var got := killer.instinct_active()
+	var ok4: bool = got.size() == 1 and got[0] == near
+	for n in got:
+		if not (n as Node).is_in_group("survivor"):
+			ok4 = false
+	all_ok = all_ok and ok4
+	print("[instinct-test] trap placement revealed %d (want 1, the one in range)  %s"
+			% [got.size(), "PASS" if ok4 else "FAIL"])
+	near.global_position = keep
+
+	print("[instinct-test] RESULT: %s" % ("PASS" if all_ok else "FAIL"))
+	get_tree().quit()
+
+
 func _dump_map_now() -> void:
 	var dir := "user://"
 	MapDump.report(map_data, self)
@@ -891,6 +1086,16 @@ func _dump_map_now() -> void:
 		MapDump.render(md, self, nm)
 	print("[dump] done")
 	get_tree().quit()
+
+
+## How many generators are currently bleeding progress, i.e. that the killer has
+## damaged and nobody has touched since.
+func _regressing_gens() -> int:
+	var n := 0
+	for g in generators:
+		if is_instance_valid(g) and g.regressing:
+			n += 1
+	return n
 
 
 func _debug_log() -> void:
@@ -915,10 +1120,10 @@ func _debug_log() -> void:
 			hook_note = "/s%d" % int(sv.current_hook.stage)
 		parts.append("%s=%s/%s/h%d%s" % [sv.char_id, Enums.health_to_string(sv.health),
 				sv.machine.current_name, sv.hook_count, hook_note])
-	parts.append("vaults=%d/scratch=%d/stain=%s/bloodlust=%d" % [_vault_counter,
-			KillerBrain.scratch_follows,
-			"yes" if (killer != null and killer.red_stain != null) else "NO",
-			killer.bloodlust_tier if killer != null else -1])
+	parts.append("ai: vaults=%d/scratch=%d/kicks=%d/regress=%d/loopcut=%d/rotate=%d/KI=%d"
+			% [_vault_counter, KillerBrain.scratch_follows, KillerBrain.gens_kicked,
+			_regressing_gens(), KillerBrain.loop_cuts, SurvivorBrain.rotations,
+			killer.instinct_active().size() if killer != null else -1])
 	var kpos := Vector2.ZERO
 	var kstate := "-"
 	if killer != null and is_instance_valid(killer):

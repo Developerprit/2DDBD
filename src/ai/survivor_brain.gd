@@ -29,9 +29,18 @@ const ARRIVE_DIST := 12.0
 var _anchor_pos := Vector2.ZERO
 var _anchor_time := 0.0
 var _unstick_count := 0
+
+## The loop we have committed to, and for how much longer we are running it.
+## Committing is what makes orbiting work at all: re-picking the nearest spot every
+## frame made the bot oscillate between two of them, which from the outside is
+## indistinguishable from standing still.
+var _loop_spot := Vector2.ZERO
+var _loop_timer := 0.0
 ## Which way the bot runs around a loop obstacle. Picked once and then kept, so it
 ## commits to a direction instead of jittering between the two.
-var _orbit_sign := 0.0
+var _orbit_sign := 1.0
+## Debug counters.
+static var rotations := 0
 
 
 func _init(survivor: Survivor) -> void:
@@ -49,6 +58,7 @@ func think(delta: float) -> void:
 		return
 	repath_timer -= delta
 	reaction_timer -= delta
+	_loop_timer = maxf(0.0, _loop_timer - delta)
 	_update_stuck(delta)
 
 	match s.health:
@@ -245,8 +255,14 @@ func _do_down_state(delta: float) -> void:
 ## actually buy time, and we have to be *on* the pallet (the drop is instant, it is
 ## not a "run to the pallet first" action -- that would just feed the killer a free
 ## hit). Anything further out is a pallet saved for later.
+##
+## The threshold is 2.6 tiles, not 5. Dropping the moment the killer is vaguely
+## nearby is the most expensive mistake available here: a board that does not
+## actually separate the two of you has been thrown away, and there is no second
+## one at that loop. Holding it while you run the loop first -- 拉扯 -- is what
+## forces him to commit before you commit.
 func _maybe_drop_pallet(killer_dist: float) -> void:
-	if killer_dist > GameConfig.TILE * 5.0:
+	if killer_dist > GameConfig.TILE * 2.6:
 		return
 	var best: Pallet = null
 	var best_d := GameConfig.TILE * 1.7
@@ -293,7 +309,46 @@ func _choose_flee_point() -> void:
 	# only thing that buys time is making him turn. Running to a pallet and then
 	# standing beside it, which is what the bots used to do, achieves nothing at all.
 	var killer_pos := (killer as Node2D).global_position
-	var loop_spot := Vector2.ZERO
+
+	# 转点: if he has already taken the short side of the loop we are running, the
+	# loop is dead and circling it is how you walk into the weapon. Abandon it and
+	# rotate to a different one.
+	if _loop_timer > 0.0 and _loop_compromised(killer_pos):
+		_loop_timer = 0.0
+		rotations += 1
+
+	if _loop_timer > 0.0 and _loop_spot != Vector2.ZERO:
+		goal = _orbit(_loop_spot, killer_pos)
+		return
+
+	var loop_spot := _pick_loop_spot(killer_pos, away)
+	if loop_spot != Vector2.ZERO:
+		_loop_spot = loop_spot
+		# Long enough to actually complete a rotation; short enough that a bad
+		# choice does not cost the whole chase.
+		_loop_timer = 3.5
+		goal = _orbit(loop_spot, killer_pos)
+		return
+	goal = s.global_position + away * GameConfig.TILE * 12.0
+
+
+## The loop he has cut: he is on the same side of it as we are, and close enough
+## that the next rotation would run us straight into him.
+func _loop_compromised(killer_pos: Vector2) -> bool:
+	var d := killer_pos.distance_to(_loop_spot)
+	if d > GameConfig.TILE * 7.0:
+		return false
+	var to_us := s.global_position - _loop_spot
+	var to_him := killer_pos - _loop_spot
+	if to_us.length() < 1.0 or to_him.length() < 1.0:
+		return false
+	return to_us.normalized().dot(to_him.normalized()) > 0.25
+
+
+## Picks the next loop to run. Excludes the one we are leaving, so a rotation is an
+## actual rotation and not a re-selection of the same tile.
+func _pick_loop_spot(killer_pos: Vector2, away: Vector2) -> Vector2:
+	var best := Vector2.ZERO
 	var best_score := -1e9
 	for n in s.get_tree().get_nodes_in_group("interactable"):
 		var it := n as Interactable
@@ -303,21 +358,27 @@ func _choose_flee_point() -> void:
 			continue
 		if not (it is Pallet or it is WindowVault):
 			continue
-		var d := s.global_position.distance_to(it.global_position)
-		if d > GameConfig.TILE * 16.0:
+		var pos := it.global_position
+		if pos.distance_to(_loop_spot) < GameConfig.TILE * 2.0:
 			continue
-		# Must not be towards the killer.
-		var towards := (it.global_position - s.global_position).normalized()
+		var d := s.global_position.distance_to(pos)
+		if d > GameConfig.TILE * 18.0:
+			continue
+		# Must not be towards the killer: running at him to reach a loop is not a
+		# rotation, it is a mistake.
+		var towards := (pos - s.global_position).normalized()
 		if towards.dot(away) < 0.1:
 			continue
-		var score := 40.0 - d * 0.05
+		# Prefer loops he is far from, and prefer a different *kind* of loop than
+		# the one being abandoned so the next rotation cannot be predicted.
+		var score := 40.0 - d * 0.08
+		score += minf(24.0, killer_pos.distance_to(pos) / GameConfig.TILE)
+		if it is WindowVault and _loop_spot != Vector2.ZERO:
+			score += 6.0
 		if score > best_score:
 			best_score = score
-			loop_spot = it.global_position
-	if best_score > -1e8:
-		goal = _orbit(loop_spot, killer_pos)
-		return
-	goal = s.global_position + away * GameConfig.TILE * 12.0
+			best = pos
+	return best
 
 
 ## A point on a circle around a loop spot: on the far side of it from the killer, and

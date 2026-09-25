@@ -26,6 +26,7 @@ signal survivor_revealed(survivor_id: int, pos: Vector2, reason: String)
 
 # --- Killer ----------------------------------------------------------------
 signal killer_spawned(killer: Node)
+signal killer_broke(pos: Vector2)        ## killer smashed a pallet/wall (Alert perk)
 signal killer_attack(windup: bool)
 signal killer_hit_survivor(killer_id: int, survivor_id: int, healthy: bool)
 signal killer_carrying(survivor_id: int, carrying: bool)

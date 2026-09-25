@@ -93,6 +93,7 @@ const STRINGS := {
 	"act.vault_pallet": {"en": "Vault Pallet", "zh": "翻越木板"},
 	"act.drop_pallet": {"en": "Drop Pallet", "zh": "放下木板"},
 	"act.break_pallet": {"en": "Break Pallet", "zh": "破坏木板"},
+	"act.damage_gen": {"en": "Damage Generator", "zh": "破坏发电机"},
 	"act.enter_locker": {"en": "Enter Locker", "zh": "躲进衣柜"},
 	"act.exit_locker": {"en": "Exit Locker", "zh": "离开衣柜"},
 	"act.search_chest": {"en": "Search", "zh": "搜索"},
@@ -127,6 +128,7 @@ const STRINGS := {
 	"fb.chase": {"en": "CHASE", "zh": "追逐中"},
 	"fb.bloodlust_up": {"en": "Bloodlust increased", "zh": "杀戮欲望提升"},
 	"fb.trapped": {"en": "You are trapped!", "zh": "你被夹住了!"},
+	"fb.killer_broke": {"en": "The killer broke something!", "zh": "杀手正在破坏障碍!"},
 	"fb.pallet_stun": {"en": "Stunned", "zh": "被击晕"},
 	"fb.hooked_first": {"en": "You have been hooked", "zh": "你被挂上了钩子"},
 	"fb.hooked_struggle": {"en": "Struggle phase!", "zh": "进入挣扎阶段!"},
@@ -213,12 +215,21 @@ const STRINGS := {
 	"char.claudette": {"en": "Claudette Morel", "zh": "克劳黛特·莫瑞尔"},
 	"char.jake": {"en": "Jake Park", "zh": "杰克·帕克"},
 	"char.trapper": {"en": "The Trapper", "zh": "陷阱杀手"},
+	"char.wraith": {"en": "The Wraith", "zh": "幽灵"},
+	"char.feng_min": {"en": "Feng Min", "zh": "凤敏"},
 
 	"power.bear_trap": {"en": "Bear Trap", "zh": "捕兽夹"},
 	"power.bear_trap.desc": {
 		"en": "Place hidden bear traps. Survivors who step on them are held in place until they free themselves.",
 		"zh": "在地面放置隐藏的捕兽夹。踩中的逃生者将被定住，直到挣脱为止。",
 	},
+	"power.bell": {"en": "Wailing Bell", "zh": "哀嚎之铃"},
+	"power.bell.desc": {
+		"en": "Cloak and uncloak at will. While cloaked you leave no red stain, make no heartbeat and move slightly faster -- but you cannot attack.",
+		"zh": "随意隐身与显形。隐身时不会留下红光、没有心跳，且移动略快——但无法攻击。",
+	},
+	"power.bell.cloaked": {"en": "Cloaked", "zh": "隐身"},
+	"power.bell.uncloaked": {"en": "Uncloaked", "zh": "显形"},
 }
 
 

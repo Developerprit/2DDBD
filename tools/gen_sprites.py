@@ -1348,6 +1348,25 @@ KILLER_PALETTE = {
     "carry_skin": rgba("#c99a72"),
 }
 
+WRAITH_PALETTE = {
+    "skin": rgba("#cfc6bd"),
+    "hair": rgba("#20242a"),
+    "top": rgba("#b9c2c8"),
+    "pants": rgba("#6f7780"),
+    "accent": rgba("#d8e0e6"),
+    "mask": rgba("#aeb6bc"),
+    "weapon_col": rgba("#c4cad0"),
+    "carry_col": rgba("#5a4a42"),
+    "carry_skin": rgba("#c99a72"),
+}
+
+# Each killer: its palette and the build options (the Wraith carries a bell,
+# not a cleaver, so it is drawn without the generic weapon).
+KILLER_PALETTES = {
+    "trapper": {"pal": KILLER_PALETTE, "opts": {"weapon": True, "mask": True}},
+    "wraith": {"pal": WRAITH_PALETTE, "opts": {"mask": True}},
+}
+
 
 def main():
     global _svg_only
@@ -1368,12 +1387,13 @@ def main():
         manifest["characters"].append(meta)
         print("   survivor_%s  %dx%d" % (name, atlas.w, atlas.h))
 
-    atlas, meta = build_character_atlas("trapper", KILLER_PALETTE, KILLER_ANIMS,
-                                        (KILL_W, KILL_H), killer=True,
-                                        opts={"weapon": True, "mask": True})
-    write(atlas, "killer", "killer_trapper")
-    manifest["characters"].append(meta)
-    print("   killer_trapper  %dx%d" % (atlas.w, atlas.h))
+    for kname, kentry in KILLER_PALETTES.items():
+        atlas, meta = build_character_atlas(kname, kentry["pal"], KILLER_ANIMS,
+                                            (KILL_W, KILL_H), killer=True, opts=kentry["opts"])
+        write(atlas, "killer", "killer_" + kname)
+        meta["palette"] = {k: "#%02x%02x%02x" % (v[0], v[1], v[2]) for k, v in kentry["pal"].items()}
+        manifest["characters"].append(meta)
+        print("   killer_%s  %dx%d" % (kname, atlas.w, atlas.h))
 
     print("[gen_sprites] props ...")
     props = {

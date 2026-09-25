@@ -19,6 +19,9 @@ var prompt_bar: ProgressBar
 var dial: Control
 var killer_panel: PanelContainer
 var power_label: Label
+## Survivors with the Alert perk get a few seconds of killer position pings
+## after the killer smashes a pallet. This is the expiry timestamp (ms).
+var _alert_reveal_until := 0
 var item_label: Label
 var toast_box: VBoxContainer
 var bloodlust_bar: ProgressBar
@@ -45,6 +48,7 @@ func _ready() -> void:
 	_build()
 	EventBus.toast.connect(_on_toast)
 	EventBus.settings_changed.connect(_rebuild_theme)
+	EventBus.killer_broke.connect(_on_killer_broke)
 	await get_tree().process_frame
 	mc = MatchController.instance
 
@@ -309,10 +313,18 @@ func _draw_map() -> void:
 		if mc.player_role == Enums.Team.KILLER:
 			map_overlay.draw_circle(kp, 4.0, Color(0.85, 0.25, 0.2))
 		else:
-			# Survivors only see the killer when he is close enough to hear.
-			var d := _player_pos().distance_to(mc.killer.global_position)
-			if d < GameConfig.TERROR_RADIUS * 0.8:
-				map_overlay.draw_circle(kp, 4.0, Color(0.85, 0.25, 0.2, 0.85))
+			var kk := mc.killer as Killer
+			# A cloaked Wraith is invisible on the survivor's minimap entirely.
+			if kk != null and kk.is_cloaked():
+				pass
+			elif _alert_active() and Time.get_ticks_msec() < _alert_reveal_until:
+				# Alert: the killer just smashed something nearby, ping his spot.
+				map_overlay.draw_circle(kp, 4.0, Color(0.95, 0.55, 0.2, 0.9))
+			else:
+				# Survivors only see the killer when he is close enough to hear.
+				var d := _player_pos().distance_to(mc.killer.global_position)
+				if d < GameConfig.TERROR_RADIUS * 0.8:
+					map_overlay.draw_circle(kp, 4.0, Color(0.85, 0.25, 0.2, 0.85))
 
 
 # ---------------------------------------------------------------------------
@@ -337,6 +349,26 @@ func _player_pos() -> Vector2:
 	if mc.local_actor != null and is_instance_valid(mc.local_actor):
 		return mc.local_actor.global_position
 	return Vector2.ZERO
+
+
+## True when the local player is a survivor carrying the Alert perk.
+func _alert_active() -> bool:
+	var sv := _local_survivor()
+	if sv == null:
+		return false
+	return sv.perk_mods.has("alert_reveal_time")
+
+
+## Alert perk: when the killer smashes a pallet, survivors who run Alert get a
+## few seconds of his position painted on the minimap.
+func _on_killer_broke(_pos: Vector2) -> void:
+	if mc == null or mc.player_role != Enums.Team.SURVIVOR:
+		return
+	var sv := _local_survivor()
+	if sv == null or not sv.perk_mods.has("alert_reveal_time"):
+		return
+	_alert_reveal_until = Time.get_ticks_msec() + int(float(sv.perk_mods["alert_reveal_time"]) * 1000.0)
+	EventBus.toast.emit(Locale.t("fb.killer_broke"), Color(0.95, 0.55, 0.2))
 
 
 func _local_survivor() -> Survivor:
@@ -448,6 +480,8 @@ func _sync_prompt() -> void:
 				text = "%s: %s / %s" % [Locale.t("hint.press"), Locale.t("act.hook"), Locale.t("act.pickup")]
 			elif k.find_pickup_probe() != null:
 				text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.pickup")]
+			elif k.nearest_kickable_generator() != null:
+				text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.damage_gen")]
 
 	prompt_box.visible = text != ""
 	if text != "":
@@ -505,7 +539,11 @@ func _sync_killer_panel() -> void:
 	var k := mc.local_actor as Killer
 	if k == null:
 		return
-	power_label.text = "%s: %d" % [Locale.t("power.bear_trap"), k.trap_stock]
+	if k.char_id == "wraith":
+		power_label.text = "%s: %s" % [Locale.t("power.bell"),
+				Locale.t("power.bell.cloaked" if k.cloaked else "power.bell.uncloaked")]
+	else:
+		power_label.text = "%s: %d" % [Locale.t("power.bear_trap"), k.trap_stock]
 	bloodlust_bar.value = k.bloodlust_tier
 	if bl_vignette != null:
 		var show := k.bloodlust_tier > 0

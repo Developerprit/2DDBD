@@ -27,9 +27,20 @@ var current_hook_target: Hook = null
 ## The red cone on the ground. Survivors read it to know where he is looking.
 var red_stain: RedStain = null
 
+## Killer Instinct: survivor instance id -> expiry time in ms. Only ever filled by
+## a power actually flushing somebody out (see instinct_reveal).
+var _instinct: Dictionary = {}
+## Bumped every time a reveal happens, so the HUD can flash on a fresh trigger.
+var instinct_trigger_count := 0
+
 var trap_stock := GameConfig.TRAP_START
 var placed_traps: Array = []
 var trap_on_ground: BearTrap = null
+
+# --- power: Wraith "Wailing Bell" (cloak) ---------------------------------
+var cloaked := false
+var _cloak_cd := 0.0          ## anti-flicker toggle cooldown
+var _uncloak_lock := 0.0      ## materialise-slow timer after uncloaking
 
 # --- misc ------------------------------------------------------------------
 var speed_mult := 1.0
@@ -74,6 +85,8 @@ func _build_red_stain() -> void:
 ## True when `pos` falls inside the killer's red stain cone. Used by the
 ## survivor AI: standing in the stain is how you get hit.
 func is_in_red_stain(pos: Vector2) -> bool:
+	if cloaked:
+		return false
 	var to := pos - global_position
 	if to.length() > GameConfig.RED_STAIN_RANGE:
 		return false
@@ -113,6 +126,7 @@ func _register_states() -> void:
 	machine.register("break_pallet", BreakPalletState.new(machine, self))
 	machine.register("vault", VaultState.new(machine, self))
 	machine.register("place_trap", PlaceTrapState.new(machine, self))
+	machine.register("damage_gen", DamageGenState.new(machine, self))
 	machine.register("stun", StunState.new(machine, self))
 
 
@@ -120,6 +134,12 @@ func _register_states() -> void:
 # Base overrides
 # ---------------------------------------------------------------------------
 func base_speed() -> float:
+	if char_id == "wraith":
+		if cloaked:
+			return GameConfig.m(GameConfig.WRAITH_CLOAK_CLOAKED_SPEED)
+		if _uncloak_lock > 0.0:
+			return GameConfig.m(GameConfig.K_RUN) * GameConfig.WRAITH_CLOAK_UNCLOAK_SLOW
+		return GameConfig.m(GameConfig.WRAITH_UNCLOAK_SPEED)
 	var s := GameConfig.m(GameConfig.K_RUN)
 	if is_carrying:
 		s = GameConfig.m(GameConfig.K_CARRY)
@@ -145,6 +165,8 @@ func _physics_process(delta: float) -> void:
 		_read_input()
 	_update_power(delta)
 	_update_terror(delta)
+	if char_id == "wraith":
+		_update_cloak(delta)
 	if red_stain != null:
 		red_stain.set_direction(facing_rad, bloodlust_tier)
 	if attack_cooldown > 0.0:
@@ -193,6 +215,58 @@ func _interact_pressed() -> void:
 	var p := nearest_breakable_pallet()
 	if p != null and machine.has_state("break_pallet"):
 		machine.force("break_pallet", {"target": p})
+		return
+	# Damaging a generator: the killer's only way to take progress back off the
+	# board, and without it a survivor who taps a generator has effectively
+	# finished it.
+	var g := nearest_kickable_generator()
+	if g != null and machine.has_state("damage_gen"):
+		machine.force("damage_gen", {"target": g})
+
+
+func nearest_kickable_generator() -> Generator:
+	var best: Generator = null
+	var best_d := GameConfig.TILE * 1.7
+	for n in get_tree().get_nodes_in_group("interactable"):
+		var g := n as Generator
+		if g == null or not is_instance_valid(g) or not g.can_be_kicked_by(self):
+			continue
+		var d := global_position.distance_to(g.global_position)
+		if d < best_d:
+			best_d = d
+			best = g
+	return best
+
+
+# ---------------------------------------------------------------------------
+# Killer Instinct
+# ---------------------------------------------------------------------------
+## Reveals a survivor through walls for `seconds`, with the orange spiderweb
+## overlay the original uses. Deliberately narrow: only a power calling this
+## reveals anybody, and only survivors are ever revealed.
+func instinct_reveal(sv: Survivor, seconds: float) -> void:
+	if sv == null or not is_instance_valid(sv):
+		return
+	if sv.health in [Enums.Health.ESCAPED, Enums.Health.DEAD]:
+		return
+	_instinct[sv.get_instance_id()] = Time.get_ticks_msec() + int(seconds * 1000.0)
+	instinct_trigger_count += 1
+
+
+## Everything currently revealed, with stale entries pruned.
+func instinct_active() -> Array:
+	var now := Time.get_ticks_msec()
+	var out: Array = []
+	for id in _instinct.keys():
+		if int(_instinct[id]) <= now:
+			_instinct.erase(id)
+			continue
+		var obj: Object = instance_from_id(int(id))
+		if obj == null or not is_instance_valid(obj):
+			_instinct.erase(id)
+			continue
+		out.append(obj)
+	return out
 
 
 func _nearest_vaultable_window() -> WindowVault:
@@ -234,6 +308,17 @@ func _handle_footsteps(delta: float, moving: bool) -> void:
 # Terror radius
 # ---------------------------------------------------------------------------
 func _update_terror(_delta: float) -> void:
+	# A cloaked Wraith makes no heartbeat at all, so the survivor's terror meter
+	# stays at zero and there is nothing to hear.
+	if char_id == "wraith" and cloaked:
+		var local_player: Node = null
+		for s in get_tree().get_nodes_in_group("survivor"):
+			var sv := s as Survivor
+			if sv != null and is_instance_valid(sv) and not sv.is_ai:
+				local_player = sv
+		if local_player != null:
+			EventBus.terror_level.emit(0.0)
+		return
 	var cfg: Dictionary = GameConfig.killers.get(char_id, {})
 	var radius := float(cfg.get("terror_radius", 32.0)) * GameConfig.TILE
 	var local_player: Node = null
@@ -402,6 +487,10 @@ func _nearest_pallet_in_state(st: int) -> Pallet:
 
 
 func request_attack() -> void:
+	if cloaked:
+		# You cannot swing while invisible -- pressing attack reveals you instead.
+		toggle_cloak()
+		return
 	if machine.current_name in ["attack", "stun", "hooking", "break_pallet", "vault", "carry"]:
 		return
 	if attack_cooldown > 0.0 or blinding_time > 0.0:
@@ -471,6 +560,10 @@ func on_hit_landed(_victim: Node) -> void:
 
 
 func apply_stun(seconds: float) -> void:
+	## Stunning a Wraith rips him back into the visible world -- he cannot sit
+	## cloaked while stunned the way he otherwise could.
+	if cloaked:
+		toggle_cloak()
 	var s := seconds
 	if perk_mods.has("stun_resist"):
 		s *= (1.0 - float(perk_mods["stun_resist"]))
@@ -605,6 +698,9 @@ func on_hook_complete(_sv: Survivor, _h: Hook) -> void:
 # Power: bear traps
 # ---------------------------------------------------------------------------
 func request_power() -> void:
+	if char_id == "wraith":
+		toggle_cloak()
+		return
 	if machine.current_name in ["attack", "stun", "carry", "hooking", "vault"]:
 		return
 	var existing := _nearest_own_trap()
@@ -640,6 +736,15 @@ func place_trap() -> BearTrap:
 		var oldest: BearTrap = placed_traps.pop_front()
 		if is_instance_valid(oldest) and not oldest.snapped:
 			oldest.queue_free()
+	# Placing a trap flushes out anybody standing right next to you. This mirrors
+	# the original's "Iridescent Crystal Shard" style add-on, where setting a
+	# Singularity Biopod grants Killer Instinct on survivors within 6 m for 5 s.
+	for n in get_tree().get_nodes_in_group("survivor"):
+		var sv := n as Survivor
+		if sv == null or not is_instance_valid(sv):
+			continue
+		if global_position.distance_to(sv.global_position) <= GameConfig.TILE * 6.0:
+			instinct_reveal(sv, 3.0)
 	var bt := BearTrap.new()
 	bt.owner_killer = self
 	bt.armed = true
@@ -684,12 +789,54 @@ func _update_power(_delta: float) -> void:
 				continue
 			if sv.global_position.distance_to(bt.global_position) < GameConfig.TRAP_RADIUS + 4.0:
 				bt.snap_on(sv, self)
+				# Something just walked into your trap: that is exactly the kind of
+				# information Killer Instinct exists to hand over.
+				instinct_reveal(sv, 4.0)
 				sv.trap = bt
 				sv.snared = true
 				if sv.machine.has_state("trapped"):
 					sv.machine.force("trapped")
 				EventBus.toast.emit(Locale.t("fb.trapped"),
 						Color(0.9, 0.4, 0.35) if not sv.is_ai else Color(0.6, 0.6, 0.6))
+
+
+# ---------------------------------------------------------------------------
+# Power: Wraith "Wailing Bell" (cloak / uncloak)
+# ---------------------------------------------------------------------------
+func is_cloaked() -> bool:
+	return cloaked
+
+
+## Toggle between solid and phased. Pressing the power key while invisible
+## reveals you; doing so while solid hides you. A short cooldown stops the key
+## from flickering the state every frame.
+func toggle_cloak() -> void:
+	if _cloak_cd > 0.0:
+		return
+	_cloak_cd = GameConfig.WRAITH_CLOAK_TOGGLE_CD
+	cloaked = not cloaked
+	if not cloaked:
+		# Uncloaking carries a beat of vulnerability: slower and fully visible.
+		_uncloak_lock = GameConfig.WRAITH_CLOAK_UNCLOAK_LOCK
+	if red_stain != null:
+		red_stain.visible = not cloaked
+	power_state_changed.emit({"cloaked": cloaked})
+	EventBus.toast.emit("%s — %s" % [Locale.t("power.bell"),
+			Locale.t("power.bell.cloaked" if cloaked else "power.bell.uncloaked")],
+			Color(0.6, 0.8, 0.9))
+
+
+## Ticks the toggle cooldown, the materialise-lock slow, and the sprite
+## transparency. Cloak drives self_modulate (not modulate) so the line-of-sight
+## occlusion system, which writes modulate.a on the *enemy*, never fights it.
+func _update_cloak(delta: float) -> void:
+	if _cloak_cd > 0.0:
+		_cloak_cd -= delta
+	if _uncloak_lock > 0.0:
+		_uncloak_lock -= delta
+	if sprite != null:
+		var target := GameConfig.WRAITH_CLOAK_ALPHA if cloaked else 1.0
+		sprite.self_modulate.a = lerpf(sprite.self_modulate.a, target, minf(1.0, delta * 12.0))
 
 
 # ---------------------------------------------------------------------------
@@ -753,7 +900,8 @@ class MoveState:
 	func enter(_msg: Dictionary = {}) -> void:
 		var k := actor as Killer
 		if k.sprite != null:
-			k.sprite.self_modulate = Color.WHITE
+			# Keep the cloak's transparency instead of wiping it back to solid.
+			k.sprite.self_modulate = Color(1, 1, 1, GameConfig.WRAITH_CLOAK_ALPHA if k.cloaked else 1.0)
 
 	func physics(delta: float) -> void:
 		var k := actor as Killer
@@ -779,6 +927,11 @@ class AttackState:
 
 	func enter(_msg: Dictionary = {}) -> void:
 		var k := actor as Killer
+		if k.cloaked:
+			# A cloaked swing is impossible: reveal first, then return to the chase.
+			k.toggle_cloak()
+			machine.change("move")
+			return
 		var cfg: Dictionary = GameConfig.killers.get(k.char_id, {})
 		var atk: Dictionary = cfg.get("attack", {})
 		_windup = float(atk.get("windup", GameConfig.K_ATTACK_WINDUP))
@@ -919,6 +1072,8 @@ class BreakPalletState:
 		if _timer >= _total:
 			_target.on_broken_by_killer(k)
 			SaveData.add_bloodpoints("sacrifice", 200)
+			# Alert (and any loud-noise perk): smashing a pallet pings the killer.
+			EventBus.killer_broke.emit(_target.global_position)
 			machine.change("move")
 
 
@@ -998,6 +1153,48 @@ class PlaceTrapState:
 				k.pickup_trap(_trap)
 			# Trapper cannot vault large windows while holding a trap; nothing
 			# to model here, just return to the chase.
+			machine.change("move")
+
+
+class DamageGenState:
+	extends StateMachine.State
+
+	var _target: Generator = null
+	var _timer := 0.0
+	var _total := 1.8
+
+	func enter(msg: Dictionary = {}) -> void:
+		var k := actor as Killer
+		_target = msg.get("target", null)
+		if _target == null:
+			machine.change("move")
+			return
+		_total = _target.kick_time(k)
+		_timer = 0.0
+		k.move_input = Vector2.ZERO
+		k.velocity = Vector2.ZERO
+		k.face_towards(_target.global_position)
+		k.play_anim("attack_%s" % Utils.facing_suffix(k.facing), true)
+
+	func physics(delta: float) -> void:
+		var k := actor as Killer
+		k.move_input = Vector2.ZERO
+		k.apply_movement(delta)
+		# A human killer can let go and walk away; the bot always finishes.
+		if not k.is_ai and not Input.is_action_pressed("interact"):
+			machine.change("move")
+
+	func update(delta: float) -> void:
+		var k := actor as Killer
+		if _target == null or not is_instance_valid(_target) or _target.completed:
+			machine.change("move")
+			return
+		_timer += delta
+		if fmod(_timer, 0.35) < delta:
+			AudioDirector.play_at("gen_explode", _target.global_position, k._camera(), -16.0)
+		if _timer >= _total:
+			_target.damage_by_killer(k)
+			SaveData.add_bloodpoints("sacrifice", 250)
 			machine.change("move")
 
 

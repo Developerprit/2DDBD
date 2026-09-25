@@ -40,6 +40,22 @@ static func render(map_data: Dictionary, mc: MatchController, path: String) -> v
 				col = floor_col.lerp(detail_col, float(gi) / 5.0 * 0.55)
 			_fill(img, x * CELL, y * CELL, col)
 
+	# --- the killer shack, outlined ----------------------------------------
+	# It is the one structure whose *shape* matters (one door, one window beside
+	# it, empty inside), so the preview frames the building itself. Without this a
+	# 9x9 empty square is easy to mistake for a compound in a 512 px thumbnail.
+	for r in map_data.get("shacks", []):
+		var rect: Rect2i = r
+		var col := Color(1.0, 0.36, 0.08)
+		for k in rect.size.x:
+			_px(img, (rect.position.x + k) * CELL, rect.position.y * CELL, col)
+			_px(img, (rect.position.x + k) * CELL,
+					(rect.position.y + rect.size.y) * CELL - 1, col)
+		for k in rect.size.y:
+			_px(img, rect.position.x * CELL, (rect.position.y + k) * CELL, col)
+			_px(img, (rect.position.x + rect.size.x) * CELL - 1,
+					(rect.position.y + k) * CELL, col)
+
 	# --- helpers -----------------------------------------------------------
 	var put := func(pos: Vector2, col: Color, r: int) -> void:
 		var tx := int(pos.x / GameConfig.TILE)
@@ -115,6 +131,27 @@ static func report(map_data: Dictionary, mc: MatchController) -> void:
 
 	print("[map] %s  %dx%d  open=%.1f%%  reachable=%.1f%%" % [map_data.get("map_id", "?"),
 			n, n, open_ratio * 100.0, float(reachable) / float(n * n) * 100.0])
+	# Plot census. A realm wants exactly one main building and exactly one shack;
+	# both are gameplay guarantees, so they get counted rather than eyeballed.
+	var kinds2: Array = map_data.get("kinds", [])
+	if not kinds2.is_empty():
+		var labels := [
+			["main", MapGenerator.K_MAIN], ["shack", MapGenerator.K_SHACK],
+			["compound", MapGenerator.K_COMPOUND], ["gym", MapGenerator.K_GYM],
+			["shed", MapGenerator.K_SHED], ["yard", MapGenerator.K_YARD],
+			["open", MapGenerator.K_OPEN],
+		]
+		var census: Array = []
+		for pair in labels:
+			var c := 0
+			for v in kinds2:
+				if int(v) == int(pair[1]):
+					c += 1
+			census.append("%s=%d" % [pair[0], c])
+		print("[map] plots: %s" % ", ".join(census))
+
+	print("[map] shack: %s" % _check_shack(map_data))
+
 	print("[map] generators=%d hooks=%d loops=%d (pallet+window) lockers=%d chests=%d gates=%d"
 			% [gens.size(), hooks.size(), loops, map_data.get("lockers", []).size(),
 			map_data.get("chests", []).size(), map_data.get("gates", []).size()])
@@ -245,6 +282,96 @@ static func _report_vault_geometry(map_data: Dictionary) -> void:
 			bad += 1
 	print("[map] vault landing: %d/%d correct%s" % [total - bad, total,
 			"" if bad == 0 else "   <-- BROKEN"])
+
+
+## The killer shack's value is entirely in its shape, and a shape is exactly the
+## kind of thing that silently rots as the generator is edited, so it is asserted:
+##   * exactly one shack
+##   * exactly one window, and it is on a wall adjacent to the door (never opposite,
+##     which would turn the loop into a straight line)
+##   * a pallet across the doorway
+##   * a completely empty interior
+static func _check_shack(map_data: Dictionary) -> String:
+	var shacks: Array = map_data.get("shacks", [])
+	var n := int(map_data["size"])
+	var grid: PackedByteArray = map_data["grid"]
+	if shacks.is_empty():
+		return "NONE  <-- BROKEN"
+	if shacks.size() > 1:
+		return "%d shacks  <-- BROKEN" % shacks.size()
+
+	var rect: Rect2i = shacks[0]
+	var wins := 0
+	var win_cell := Vector2i(-1, -1)
+	for w in map_data.get("windows", []):
+		var c := Utils.tile_of(w["pos"])
+		if rect.has_point(c):
+			wins += 1
+			win_cell = c
+	var pals := 0
+	var pal_cell := Vector2i(-1, -1)
+	for p in map_data.get("pallets", []):
+		var c := Utils.tile_of(p["pos"])
+		if rect.has_point(c):
+			pals += 1
+			pal_cell = c
+
+	# Count the openings in the wall ring itself.
+	var openings := 0
+	var openings_at: Array = []
+	for x in range(rect.position.x, rect.position.x + rect.size.x):
+		for y in [rect.position.y, rect.position.y + rect.size.y - 1]:
+			if MapGenerator.at(grid, n, x, y) != MapGenerator.F_WALL:
+				openings += 1
+				openings_at.append(Vector2i(x, y))
+	for y in range(rect.position.y + 1, rect.position.y + rect.size.y - 1):
+		for x in [rect.position.x, rect.position.x + rect.size.x - 1]:
+			if MapGenerator.at(grid, n, x, y) != MapGenerator.F_WALL:
+				openings += 1
+				openings_at.append(Vector2i(x, y))
+
+	# Interior must be entirely walkable.
+	var solid_inside := 0
+	for y in range(rect.position.y + 1, rect.position.y + rect.size.y - 1):
+		for x in range(rect.position.x + 1, rect.position.x + rect.size.x - 1):
+			if MapGenerator.at(grid, n, x, y) == MapGenerator.F_WALL:
+				solid_inside += 1
+
+	# A window is punched INTO a solid wall tile -- it is not a hole in the grid,
+	# it is a tile you vault. So the ring must have exactly one grid opening (the
+	# door), and the window tile must still read as a wall.
+	var win_is_wall := MapGenerator.at(grid, n, win_cell.x, win_cell.y) \
+			== MapGenerator.F_WALL
+
+	# The window must be adjacent to the door, not opposite it. "Adjacent" is
+	# judged on which wall each sits on: the two walls must be perpendicular.
+	var door_cell: Vector2i = openings_at[0] if not openings_at.is_empty() else pal_cell
+	var door_wall := -1
+	if door_cell.x == rect.position.x:
+		door_wall = 3
+	elif door_cell.x == rect.position.x + rect.size.x - 1:
+		door_wall = 1
+	elif door_cell.y == rect.position.y:
+		door_wall = 0
+	elif door_cell.y == rect.position.y + rect.size.y - 1:
+		door_wall = 2
+	var win_wall := -1
+	if win_cell.x == rect.position.x:
+		win_wall = 3
+	elif win_cell.x == rect.position.x + rect.size.x - 1:
+		win_wall = 1
+	elif win_cell.y == rect.position.y:
+		win_wall = 0
+	elif win_cell.y == rect.position.y + rect.size.y - 1:
+		win_wall = 2
+	var adjacent := door_wall >= 0 and win_wall >= 0 and (door_wall % 2) != (win_wall % 2)
+
+	var ok: bool = wins == 1 and pals == 1 and solid_inside == 0 \
+			and openings == 1 and win_is_wall and adjacent
+	return "%dx%d at %s  windows=%d(on wall=%s) pallets=%d door/ring openings=%d interior solid=%d window-wall=%s  %s" \
+			% [rect.size.x, rect.size.y, str(rect.position), wins, str(win_is_wall),
+			pals, openings, solid_inside, "adjacent" if adjacent else "OPPOSITE/BAD",
+			"PASS" if ok else "FAIL"]
 
 
 ## Exercises the real landing_point() on a throwaway instance rather than re-deriving

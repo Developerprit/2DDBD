@@ -42,7 +42,7 @@ static func manifest() -> Dictionary:
 
 
 static func _atlas_texture(sprite_set: String) -> Texture2D:
-	var path := KILLER_DIR % sprite_set if sprite_set == "trapper" else SURVIVOR_DIR % sprite_set
+	var path := KILLER_DIR % sprite_set if _is_killer else SURVIVOR_DIR % sprite_set
 	if not ResourceLoader.exists(path):
 		push_warning("AnimBuilder: missing atlas %s" % path)
 		return null
@@ -82,10 +82,12 @@ static func _add_anim(sf: SpriteFrames, rows: Array, anim_name: String, row_name
 static var _current_set := ""
 static var _frame_w := 16
 static var _frame_h := 22
+static var _is_killer := false
 
 
 static func build(sprite_set: String, is_killer: bool) -> SpriteFrames:
 	_current_set = sprite_set
+	_is_killer = is_killer
 	_frame_w = 24 if is_killer else 16
 	_frame_h = 30 if is_killer else 22
 	var sf := SpriteFrames.new()

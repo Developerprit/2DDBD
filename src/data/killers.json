@@ -44,5 +44,40 @@
       {"id": "bloody_coil", "name": {"en": "Bloody Coil", "zh": "血腥线圈"}, "desc": {"en": "Traps never spawn far from generators.", "zh": "夹子总是生成在发电机附近。"}, "mods": {"bias_generator": 1}},
       {"id": "fastening_tools", "name": {"en": "Fastening Tools", "zh": "固定工具"}, "desc": {"en": "Place traps 40% faster.", "zh": "放置夹子速度提升 40%。"}, "mods": {"place_speed": 0.4}}
     ]
+  },
+  "wraith": {
+    "id": "wraith",
+    "name_key": "char.wraith",
+    "portrait": "killer_wraith",
+    "sprite_set": "wraith",
+    "weapon": "bell",
+    "move_speed": 4.6,
+    "terror_radius": 32.0,
+    "hitbox_radius": 7.0,
+    "attack": {
+      "windup": 0.35,
+      "cooldown": 3.0,
+      "range": 2.2,
+      "arc_deg": 90.0,
+      "weapon_hit_delay": 0.15
+    },
+    "lunge": {
+      "speed": 6.0,
+      "duration": 0.5,
+      "recover": 1.0,
+      "charge_time": 0.25
+    },
+    "power": {
+      "id": "bell",
+      "name_key": "power.bell",
+      "desc_key": "power.bell.desc",
+      "cloak_speed": 4.6,
+      "uncloak_speed": 4.4,
+      "uncloak_lock": 1.5,
+      "uncloak_slow": 0.86,
+      "cloak_alpha": 0.45,
+      "toggle_cd": 0.3
+    },
+    "addons": []
   }
 }

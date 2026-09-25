@@ -46,5 +46,17 @@
       "en": "A loner raised in the woods, comfortable sabotaging anything mechanical.",
       "zh": "在森林里长大的独行者，拆任何机械都驾轻就熟。"
     }
+  },
+  "feng_min": {
+    "id": "feng_min",
+    "name_key": "char.feng_min",
+    "sprite_set": "feng_min",
+    "palette": {"skin": "#e8b98c", "hair": "#15110d", "top": "#1f8a8c", "pants": "#2b2f33", "accent": "#e0b020"},
+    "title": {"en": "The Esports Player", "zh": "电竞选手"},
+    "personal_perk": "technician",
+    "bio": {
+      "en": "A fearless competitive gamer who fixes generators without flinching at a failed skill check.",
+      "zh": "无畏的电竞选手，发电机判定失败时也临危不乱。"
+    }
   }
 }

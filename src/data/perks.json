@@ -103,6 +103,22 @@
     "trigger": "PASSIVE",
     "mods": {"trap_speed": 2.0, "trap_escape_mult": 0.5}
   },
+  "technician": {
+    "id": "technician",
+    "side": "survivor",
+    "name": {"en": "Technician", "zh": "技术员"},
+    "desc": {"en": "A failed generator skill check only explodes 25% of the time, and never reveals your location.", "zh": "发电机技能判定失败时仅有 25% 概率爆炸，且绝不会暴露你的位置。"},
+    "trigger": "ON_SKILLCHECK_FAIL",
+    "mods": {"gen_scream_mult": 0.25}
+  },
+  "alert": {
+    "id": "alert",
+    "side": "survivor",
+    "name": {"en": "Alert", "zh": "警觉"},
+    "desc": {"en": "When the killer breaks a pallet or a wall, reveal their aura to you (and nearby survivors) for 6 s.", "zh": "当杀手破坏木板或墙体时，你与附近逃生者会看到其气场，持续 6 秒。"},
+    "trigger": "ON_KILLER_BREAK",
+    "mods": {"alert_reveal_time": 6.0, "alert_radius": 36.0}
+  },
 
   "brutal_strength": {
     "id": "brutal_strength",

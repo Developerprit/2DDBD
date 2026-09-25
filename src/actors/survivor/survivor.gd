@@ -399,7 +399,7 @@ func _resolve_skill_check(grade: int) -> void:
 		0:
 			AudioDirector.play("skillcheck_miss", -2.0)
 			if skill_on_generator is Generator:
-				(skill_on_generator as Generator).explode()
+				(skill_on_generator as Generator).explode(0.09, self)
 			EventBus.toast.emit(Locale.t("fb.generator_exploded"), Color(0.9, 0.45, 0.35))
 			if machine.current_name == "interact":
 				cancel_interaction()

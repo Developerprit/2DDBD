@@ -52,6 +52,9 @@ const K_COMPOUND := 2        ## mid-size building with a ring corridor
 const K_GYM := 3             ## outdoor U-shaped wall with a pallet in the mouth
 const K_SHED := 4            ## small one-room hut with one door and one window
 const K_YARD := 5            ## dense outdoor cover: fence runs, blocks, corridors
+const K_SHACK := 6           ## the killer shack: one door, one window beside it, a
+                             ## pallet in the doorway and an empty interior -- the
+                             ## single strongest loop the realm can offer
 
 # --- placement rules -------------------------------------------------------
 const GENERATOR_CLEARANCE := 2
@@ -88,6 +91,7 @@ static func generate(seed_value: int, map_id: String) -> Dictionary:
 	var buildings: Array = []      ## Rect2i footprints, used to site generators
 	var lockers: Array = []
 	var chests: Array = []
+	var shacks: Array = []         ## the killer shack's footprint, checked by MapDump
 
 	for sy in rows:
 		for sx in cols:
@@ -105,6 +109,9 @@ static func generate(seed_value: int, map_id: String) -> Dictionary:
 				K_SHED:
 					_build_shed(grid, n, rng, sx * SECTION, sy * SECTION,
 							windows, pallets, buildings, lockers)
+				K_SHACK:
+					_build_shack(grid, n, rng, sx * SECTION, sy * SECTION,
+							windows, pallets, buildings, lockers, shacks)
 				K_YARD:
 					_build_open_ground(grid, n, rng, sx * SECTION, sy * SECTION,
 							buildings, true)
@@ -125,6 +132,7 @@ static func generate(seed_value: int, map_id: String) -> Dictionary:
 		"seed": seed_value,
 		"kinds": kinds,
 		"cols": cols,
+		"shacks": shacks,
 	}
 
 	# ---- 3. objectives, sited against the structures ----------------------
@@ -176,6 +184,18 @@ static func _plan_sections(cols: int, rows: int, rng: RandomNumberGenerator,
 	all.erase(main_cell)
 	Utils.seeded_shuffle(all, rng)
 
+	# --- the killer shack --------------------------------------------------
+	# Always exactly one. It is the realm's second landmark and the place survivors
+	# will run to when a chase goes bad, so the map is better off guaranteeing it
+	# than leaving it to chance.
+	var shack_cell := Vector2i(-1, -1)
+	for c in all:
+		if _plot_is_free(kinds, cols, rows, c, [K_MAIN], true):
+			shack_cell = c
+			break
+	if shack_cell.x >= 0:
+		kinds[shack_cell.y * cols + shack_cell.x] = K_SHACK
+
 	# --- mid-size compounds ------------------------------------------------
 	# Compounds are the backbone of the realm, so they get placed first and are
 	# kept off each other's corners -- two big buildings sharing a diagonal leave
@@ -195,6 +215,12 @@ static func _plan_sections(cols: int, rows: int, rng: RandomNumberGenerator,
 		compounds -= 1
 
 	# --- outdoor gyms ------------------------------------------------------
+	# `ci` has to be rewound. The passes below used to carry on from wherever the
+	# compound pass stopped, which was already at the end of `all` -- so gyms and
+	# sheds were never placed at all (a plot census read gym=0, shed=0 on every
+	# seed). Each pass now rescans from the top and simply skips plots that are
+	# already taken, which is also the order the priorities were meant to express.
+	ci = 0
 	var gyms := rng.randi_range(int(lg[0]), int(lg[1]))
 	while gyms > 0 and ci < all.size():
 		var c: Vector2i = all[ci]
@@ -205,6 +231,7 @@ static func _plan_sections(cols: int, rows: int, rng: RandomNumberGenerator,
 		gyms -= 1
 
 	# --- sheds -------------------------------------------------------------
+	ci = 0
 	var sheds := rng.randi_range(int(ls[0]), int(ls[1]))
 	while sheds > 0 and ci < all.size():
 		var c: Vector2i = all[ci]
@@ -333,6 +360,83 @@ static func _build_compound(g: PackedByteArray, n: int, rng: RandomNumberGenerat
 		pallets.append({"pos": d["pos"], "dir": d["axis"]})
 
 	buildings.append(Rect2i(x0, y0, w, h))
+	_inner_lockers(g, n, rng, x0 + 1, y0 + 1, w - 2, h - 2, lockers, 1)
+
+
+## The killer shack.
+##
+## The shape is the whole point, so none of it is randomised beyond where it sits
+## and which way it faces:
+##   * one door, one window, and the window is on a wall *adjacent* to the door --
+##     adjacent produces a loop (vault out of the window, run the outside of the
+##     building, come back in through the door, slam the pallet), whereas opposite
+##     produces a straight line the killer simply walks down
+##   * the interior is entirely empty, so the loop is about the walls, not furniture
+##   * a pallet across the doorway, which is the shack pallet players fight over
+static func _build_shack(g: PackedByteArray, n: int, rng: RandomNumberGenerator,
+		sx: int, sy: int, windows: Array, pallets: Array, buildings: Array,
+		lockers: Array, shacks: Array) -> void:
+	var w := 9
+	var h := 9
+	var x0 := clampi(sx + rng.randi_range(3, maxi(3, SECTION - w - 3)), 2, n - w - 2)
+	var y0 := clampi(sy + rng.randi_range(3, maxi(3, SECTION - h - 3)), 2, n - h - 2)
+	_wall_ring(g, n, x0, y0, w, h)
+
+	# --- the door ----------------------------------------------------------
+	# Centred on its wall rather than random along it: a corner-adjacent door would
+	# shorten the outside run and weaken the loop.
+	var side := rng.randi_range(0, 3)
+	var door_cell := Vector2i.ZERO
+	var door_axis := Vector2(1, 0)
+	match side:
+		0:  # north
+			door_cell = Vector2i(x0 + w / 2, y0)
+			door_axis = Vector2(1, 0)
+		1:  # east
+			door_cell = Vector2i(x0 + w - 1, y0 + h / 2)
+			door_axis = Vector2(0, 1)
+		2:  # south
+			door_cell = Vector2i(x0 + w / 2, y0 + h - 1)
+			door_axis = Vector2(1, 0)
+		_:  # west
+			door_cell = Vector2i(x0, y0 + h / 2)
+			door_axis = Vector2(0, 1)
+	_clear(g, n, door_cell.x, door_cell.y, 1, 1)
+	pallets.append({"pos": Utils.tile_center(door_cell), "dir": door_axis})
+
+	# --- the window, on a wall next to the door ----------------------------
+	var win_side := (side + (1 if rng.randf() < 0.5 else 3)) % 4
+	var win_cell := Vector2i.ZERO
+	var win_axis := Vector2(1, 0)
+	var ok := false
+	match win_side:
+		0:
+			win_cell = Vector2i(x0 + w / 2, y0)
+			win_axis = Vector2(1, 0)
+			ok = at(g, n, win_cell.x, win_cell.y - 1) == F_FLOOR \
+					and at(g, n, win_cell.x, win_cell.y + 1) == F_FLOOR
+		1:
+			win_cell = Vector2i(x0 + w - 1, y0 + h / 2)
+			win_axis = Vector2(0, 1)
+			ok = at(g, n, win_cell.x - 1, win_cell.y) == F_FLOOR \
+					and at(g, n, win_cell.x + 1, win_cell.y) == F_FLOOR
+		2:
+			win_cell = Vector2i(x0 + w / 2, y0 + h - 1)
+			win_axis = Vector2(1, 0)
+			ok = at(g, n, win_cell.x, win_cell.y - 1) == F_FLOOR \
+					and at(g, n, win_cell.x, win_cell.y + 1) == F_FLOOR
+		_:
+			win_cell = Vector2i(x0, y0 + h / 2)
+			win_axis = Vector2(0, 1)
+			ok = at(g, n, win_cell.x - 1, win_cell.y) == F_FLOOR \
+					and at(g, n, win_cell.x + 1, win_cell.y) == F_FLOOR
+	if ok:
+		windows.append({"pos": Utils.tile_center(win_cell), "dir": win_axis})
+
+	buildings.append(Rect2i(x0, y0, w, h))
+	shacks.append(Rect2i(x0, y0, w, h))
+	# One locker, tucked against a wall: the shack is somewhere you hide *and*
+	# somewhere you loop, and those are different decisions.
 	_inner_lockers(g, n, rng, x0 + 1, y0 + 1, w - 2, h - 2, lockers, 1)
 
 

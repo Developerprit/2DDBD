@@ -1,26 +1,29 @@
 class_name KillerInstinct
 extends Control
-## Objective pointers for the killer, drawn over the HUD.
+## Killer Instinct — the orange "spiderweb" reveal from the original.
 ##
-## The original gives the killer a pull toward "something is happening over there".
-## Without it a human has no way to know which of five generators is being worked on,
-## and a trial degenerates into wandering. The bots get that information from their
-## decision layer; this hands the same information to the player, as arrows pinned to
-## the edge of the screen.
+## An earlier version of this file pointed at four things: hooked survivors, the
+## open hatch, powered gates and any generator with progress on it. Two of those
+## were actively wrong. In the original, Killer Instinct reveals *Survivors only*,
+## and only for as long as a Killer Power has flushed them out — it is explicitly
+## not aura reading (a locker does not hide you from it, but a locker does not
+## trigger it either). Marking generators told the killer exactly which of five
+## generators was being worked on, and marking the hatch handed over the one thing
+## survivors are meant to have to search for. Both destroyed the whole stealth
+## half of the game.
 ##
-## Only the killer gets these. A survivor's entire game is *not* knowing where the
-## killer and the objectives stand, so this must never be shown to them.
+## So the rules here are:
+##   * survivors only, never an object
+##   * only survivors a power just revealed (Killer.instinct_reveal)
+##   * following them while the reveal lasts, through walls and lockers
 ##
-## Target priority, highest first:
-##   1. a survivor on a hook           (the only thing that can end a trial)
-##   2. the open hatch                 (a free escape, gone the moment they take it)
-##   3. powered exit gates
-##   4. generators somebody is working (weighted by how far along they are)
+## Navigation is the minimap's job, not this control's.
 
 const MARGIN := 34.0
-const MAX_TARGETS := 6
 
 var _pulse := 0.0
+var _triggers := 0
+var _flash := 0.0
 
 
 func _ready() -> void:
@@ -31,18 +34,34 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_pulse += delta
+	if _flash > 0.0:
+		_flash = maxf(0.0, _flash - delta)
 	# Nothing to do, and nothing to draw, unless the local player is the killer.
+	var k := _local_killer()
+	if k == null:
+		visible = false
+		return
+	visible = true
+	# A fresh reveal snaps the whole overlay to full strength, so a trigger is felt
+	# rather than having to be noticed.
+	if k.instinct_trigger_count != _triggers:
+		_triggers = k.instinct_trigger_count
+		_flash = 0.45
+	queue_redraw()
+
+
+func _local_killer() -> Killer:
 	var mc := MatchController.instance
-	var is_killer := mc != null and mc.local_actor != null \
-			and is_instance_valid(mc.local_actor) and mc.local_actor.is_in_group("killer")
-	visible = is_killer
-	if is_killer:
-		queue_redraw()
+	if mc == null or mc.local_actor == null or not is_instance_valid(mc.local_actor):
+		return null
+	if not mc.local_actor.is_in_group("killer"):
+		return null
+	return mc.local_actor as Killer
 
 
 func _draw() -> void:
-	var mc := MatchController.instance
-	if mc == null or mc.local_actor == null or not is_instance_valid(mc.local_actor):
+	var k := _local_killer()
+	if k == null:
 		return
 	var cam := get_viewport().get_camera_2d()
 	if cam == null:
@@ -53,77 +72,51 @@ func _draw() -> void:
 	# Godot 3 API); the viewport's canvas transform is the replacement, and it is
 	# what maps world space onto the CanvasLayer this Control draws in.
 	var canvas_xform := get_viewport().get_canvas_transform()
-	for t in _targets(mc):
-		var sp: Vector2 = canvas_xform * (t["pos"] as Vector2)
-		var col: Color = t["color"]
-		var size: float = float(t.get("size", 1.0))
+	for sv in k.instinct_active():
+		var who := sv as Node2D
+		if who == null or not is_instance_valid(who):
+			continue
+		var sp: Vector2 = canvas_xform * who.global_position
 		var inside := sp.x > MARGIN and sp.y > MARGIN \
 				and sp.x < vp.x - MARGIN and sp.y < vp.y - MARGIN
 		if inside:
-			_draw_marker(sp, col, size)
+			_draw_web(sp)
 		else:
-			# `local_actor` is an untyped Node, so the geometry has to be read
-			# through a Node2D cast or GDScript cannot infer the float.
-			var who := mc.local_actor as Node2D
-			var dist_m := 0.0
-			if who != null:
-				dist_m = who.global_position.distance_to(t["pos"]) / float(GameConfig.TILE)
-			_draw_edge_arrow(sp, vp, col, dist_m)
+			var dist_m := k.global_position.distance_to(who.global_position) \
+					/ float(GameConfig.TILE)
+			_draw_edge_arrow(sp, vp, dist_m)
 
 
-func _targets(mc: MatchController) -> Array:
-	var out: Array = []
+## The pulsating orange spiderweb, drawn on the survivor herself. Nested hexagons
+## with spokes, which is what makes it read as a *marker* rather than as a UI icon
+## floating somewhere near the target.
+func _draw_web(sp: Vector2) -> void:
+	var boost := 1.0 + _flash * 1.6
+	var r := 15.0 + 2.0 * sin(_pulse * 6.0)
+	var col := Color(1.0, 0.44, 0.06)
 
-	# 1. Someone on a hook.
-	for sv in mc.survivors:
-		if not is_instance_valid(sv):
-			continue
-		if sv.health == Enums.Health.HOOKED:
-			out.append({"pos": sv.global_position, "color": Color(0.92, 0.24, 0.22),
-					"pri": 100.0, "size": 1.35})
+	for i in 3:
+		var rr := r * (0.44 + 0.28 * float(i))
+		var pts := PackedVector2Array()
+		for n in 6:
+			var a := TAU * float(n) / 6.0 + _pulse * 0.55
+			pts.append(sp + Vector2(cos(a), sin(a)) * rr)
+		pts.append(pts[0])
+		draw_polyline(pts, Color(col.r, col.g, col.b,
+				(0.26 + 0.14 * float(2 - i)) * minf(1.0, boost)), 1.6, true)
 
-	# 2. The hatch, once it is open: a free escape the killer must contest now.
-	if mc.hatch_node != null and is_instance_valid(mc.hatch_node) and mc.hatch_node.is_open:
-		out.append({"pos": mc.hatch_node.global_position, "color": Color(0.80, 0.42, 0.95),
-				"pri": 90.0, "size": 1.2})
+	for n in 6:
+		var a := TAU * float(n) / 6.0 + _pulse * 0.55
+		draw_line(sp, sp + Vector2(cos(a), sin(a)) * r,
+				Color(col.r, col.g, col.b, 0.34 * minf(1.0, boost)), 1.2, true)
 
-	# 3. Powered gates.
-	if mc.exit_powered:
-		for e in mc.exit_gates:
-			if is_instance_valid(e):
-				out.append({"pos": e.global_position, "color": Color(0.36, 0.90, 0.46),
-						"pri": 72.0, "size": 1.1})
-
-	# 4. Generators with progress on them. This is the one that matters most in
-	#    practice: progress is invisible from across the realm, and it is the whole
-	#    reason to walk somewhere.
-	for g in mc.generators:
-		if not is_instance_valid(g) or g.completed:
-			continue
-		var p: float = clampf(g.progress, 0.0, 1.0)
-		if p < 0.04:
-			continue
-		out.append({"pos": g.global_position, "color": Color(0.98, 0.78, 0.26),
-				"pri": 40.0 + p * 40.0, "size": 0.6 + p * 1.1})
-
-	out.sort_custom(func(a, b) -> bool: return float(a["pri"]) > float(b["pri"]))
-	return out.slice(0, MAX_TARGETS)
+	draw_arc(sp, r + 3.0, 0.0, TAU, 22,
+			Color(col.r, col.g, col.b, 0.55 * minf(1.0, boost)), 1.6, true)
 
 
-## A target that is already on screen: a diamond, so it reads as "here" rather than
-## as another thing to walk to.
-func _draw_marker(sp: Vector2, col: Color, scale: float) -> void:
-	var r := 4.0 * scale
-	var c := Color(col.r, col.g, col.b, 0.55 + 0.25 * sin(_pulse * 4.0) * 0.5 + 0.2)
-	draw_colored_polygon(PackedVector2Array([
-		sp + Vector2(0, -r), sp + Vector2(r, 0),
-		sp + Vector2(0, r), sp + Vector2(-r, 0)]), c)
-	draw_arc(sp, r + 4.0, 0.0, TAU, 16, Color(c.r, c.g, c.b, 0.28), 1.0)
-
-
-## A target off screen: an arrow pinned to the safe rectangle, pointing at it, with
-## the distance in metres underneath.
-func _draw_edge_arrow(sp: Vector2, vp: Vector2, col: Color, dist_m: float) -> void:
+## A revealed survivor off screen: an arrow pinned to the safe rectangle, pointing
+## at them, with the distance in metres underneath.
+func _draw_edge_arrow(sp: Vector2, vp: Vector2, dist_m: float) -> void:
 	var center := vp * 0.5
 	var dir := sp - center
 	if dir.length() < 1.0:
@@ -139,12 +132,12 @@ func _draw_edge_arrow(sp: Vector2, vp: Vector2, col: Color, dist_m: float) -> vo
 	var edge := center + dir * t
 
 	var pulse := 0.78 + 0.22 * sin(_pulse * 5.0)
-	var c := Color(col.r, col.g, col.b, col.a * pulse)
+	var col := Color(1.0, 0.44, 0.06, pulse)
 	var tip := edge + dir * 12.0
 	var l := edge + dir.rotated(2.3) * 9.0
 	var r := edge + dir.rotated(-2.3) * 9.0
-	draw_colored_polygon(PackedVector2Array([tip, l, r]), c)
-	draw_arc(edge, 6.0, 0.0, TAU, 14, Color(c.r, c.g, c.b, c.a * 0.35), 1.0)
+	draw_colored_polygon(PackedVector2Array([tip, l, r]), col)
+	draw_arc(edge, 6.0, 0.0, TAU, 14, Color(col.r, col.g, col.b, col.a * 0.35), 1.0)
 
 	# Distance, so the arrow is actionable rather than just a direction.
 	var f := get_theme_default_font()
@@ -153,4 +146,4 @@ func _draw_edge_arrow(sp: Vector2, vp: Vector2, col: Color, dist_m: float) -> vo
 		var text_size := f.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 9)
 		var anchor := edge - dir * 16.0 - Vector2(text_size.x * 0.5, -text_size.y * 0.25)
 		draw_string(f, anchor, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 9,
-				Color(c.r, c.g, c.b, c.a * 0.9))
+				Color(col.r, col.g, col.b, col.a * 0.9))

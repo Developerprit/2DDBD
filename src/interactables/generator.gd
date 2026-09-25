@@ -12,6 +12,11 @@ var completed := false
 var repairers: Array = []
 var index: int = 0
 
+## Set once the killer has damaged it; cleared the moment a survivor touches it.
+var regressing := false
+## How many times the killer has damaged it. Capped, exactly as in the original.
+var regression_events := 0
+
 var _lamp: PointLight2D
 var _bar_bg: ColorRect
 var _bar_fill: ColorRect
@@ -80,6 +85,54 @@ func interact_time(_actor: Node) -> float:
 	return GameConfig.GENERATOR_TIME
 
 
+# ---------------------------------------------------------------------------
+# Damaging (the killer's side of the interaction)
+# ---------------------------------------------------------------------------
+func kick_time(_actor: Node) -> float:
+	return GameConfig.GEN_DAMAGE_TIME
+
+
+## A killer may damage a generator that has progress on it, has not been
+## finished, and has not already been damaged as many times as the game allows.
+func can_be_kicked_by(actor: Node) -> bool:
+	if completed or actor == null:
+		return false
+	if not actor.is_in_group("killer"):
+		return false
+	if regression_events >= GameConfig.GEN_REGRESSION_LIMIT:
+		return false
+	return progress > 0.005
+
+
+func prompt(actor: Node) -> String:
+	if actor != null and actor.is_in_group("killer"):
+		return Locale.t("act.damage_gen")
+	return Locale.t("act.repair")
+
+
+## Called when the killer finishes the damage animation.
+func damage_by_killer(actor: Node) -> void:
+	if not can_be_kicked_by(actor):
+		return
+	regression_events += 1
+	progress = maxf(0.0, progress - GameConfig.GEN_DAMAGE_LOSS)
+	regressing = true
+	if _bar_root != null:
+		_bar_root.visible = true
+	_update_bar()
+	AudioDirector.play_at("gen_explode", global_position, _active_camera(), -8.0)
+	EventBus.noise_emitted.emit(global_position, 320.0, "generator_damaged")
+	if _active_camera() != null and GameConfig.screen_shake:
+		EventBus.camera_shake.emit(0.8, 0.15)
+	# Red sparks, the original's cue that a generator is bleeding progress.
+	var tween := create_tween()
+	if _lamp != null:
+		_lamp.color = Color(0.95, 0.25, 0.18)
+		_lamp.energy = 1.3
+		tween.tween_property(_lamp, "energy", 0.3, 0.9)
+	_update_bar()
+
+
 func can_interact(actor: Node) -> bool:
 	if completed:
 		return false
@@ -105,6 +158,12 @@ func on_interact_tick(actor: Node, delta: float) -> bool:
 	if not repairers.has(actor):
 		repairers.append(actor)
 	_refresh_bar()
+
+	# Working on it again stops the bleeding immediately.
+	if regressing:
+		regressing = false
+		if animated != null:
+			animated.speed_scale = 0.6 + 1.6 * progress
 
 	var hands := repairers.size()
 	var speed: float = COOP_SPEED[clampi(hands - 1, 0, COOP_SPEED.size() - 1)]
@@ -146,6 +205,7 @@ func _complete() -> void:
 		return
 	completed = true
 	progress = 1.0
+	regressing = false
 	repairers.clear()
 	if _bar_root != null:
 		_bar_root.visible = false
@@ -161,10 +221,17 @@ func _complete() -> void:
 	EventBus.generator_completed.emit(0, GameConfig.GENERATORS_TOTAL)
 
 
-func explode(fail_amount: float = 0.09) -> void:
+func explode(fail_amount: float = 0.09, who: Node = null) -> void:
+	# Technician: a failed check only blows the generator 25% of the time, and
+	# never emits the loud "reveal" noise that normally gives away your position.
+	var tech := who != null and who is Survivor and (who as Survivor).perk_mods.has("gen_scream_mult")
+	if tech and randf() < 0.75:
+		AudioDirector.play_at("gen_explode", global_position, _active_camera(), -8.0)
+		return
 	progress = maxf(0.0, progress - fail_amount)
 	AudioDirector.play_at("gen_explode", global_position, _active_camera())
-	EventBus.noise_emitted.emit(global_position, 220.0, "generator_explode")
+	if not tech:
+		EventBus.noise_emitted.emit(global_position, 220.0, "generator_explode")
 	var tween := create_tween()
 	_lamp.color = Color(0.95, 0.35, 0.25)
 	_lamp.energy = 1.6
@@ -182,14 +249,34 @@ func _update_bar() -> void:
 	if _bar_fill == null:
 		return
 	_bar_fill.size = Vector2(28.0 * progress, 2)
+	# A bleeding generator reads red, so both sides can tell at a glance that
+	# nothing is being put back in.
+	_bar_fill.color = Color(0.92, 0.28, 0.20) if regressing else Color(0.90, 0.75, 0.30)
 
 
-func _process(_delta: float) -> void:
-	if animated != null and not completed:
+func _process(delta: float) -> void:
+	if completed:
+		return
+
+	if regressing:
+		# -0.25 charges/s, where one charge is 1/GENERATOR_TIME of the bar.
+		progress = maxf(0.0, progress -
+				(GameConfig.GEN_REGRESS_CHARGES / GameConfig.GENERATOR_TIME) * delta)
+		if progress <= 0.0:
+			regressing = false
+		if _bar_root != null:
+			_bar_root.visible = true
+
+	if animated != null:
 		animated.speed_scale = 0.6 + 1.6 * progress
-	if _lamp != null and not completed:
-		_lamp.energy = 0.15 + 0.45 * progress
-		_lamp.color = Color(0.85, 0.72, 0.30).lerp(Color(0.95, 0.85, 0.50), progress)
+	if _lamp != null:
+		if regressing:
+			# Sparks: a hard flicker rather than the calm warm ramp.
+			_lamp.color = Color(0.95, 0.28, 0.18)
+			_lamp.energy = 0.35 + 0.30 * absf(sin(Time.get_ticks_msec() * 0.02))
+		else:
+			_lamp.energy = 0.15 + 0.45 * progress
+			_lamp.color = Color(0.85, 0.72, 0.30).lerp(Color(0.95, 0.85, 0.50), progress)
 	if _bar_root != null and _bar_root.visible:
 		_update_bar()
 
