@@ -105,6 +105,8 @@ func _begin() -> void:
 				player_role = Enums.Team.SURVIVOR
 			"--debug-match":
 				_debug_match = true
+			"--dump-map":
+				_dump_map = true
 	var uargs := OS.get_cmdline_user_args()
 	for i in uargs.size():
 		if uargs[i] == "--map" and i + 1 < uargs.size():
@@ -112,6 +114,11 @@ func _begin() -> void:
 	GameConfig.player_role = player_role
 
 	_build_realm(seed_value)
+	# Layout inspection tool: render the realm to a PNG and print a readability
+	# report, then bail out. Never runs during a real match.
+	if _dump_map:
+		_dump_map_now()
+		return
 	_spawn_actors()
 	_setup_camera()
 	AudioDirector.start_ambient()
@@ -143,8 +150,10 @@ func _build_ambient() -> void:
 	# dark instead of being drawn on top of it.
 	var cm := CanvasModulate.new()
 	cm.name = "AmbientDarkness"
-	cm.color = Color(GameConfig.AMBIENT_DARKNESS, GameConfig.AMBIENT_DARKNESS,
-			GameConfig.AMBIENT_DARKNESS + 0.04)
+	# Slightly warm rather than blue: a cool tint on top of an already dark scene
+	# reads as murky, which buries the terrain further.
+	cm.color = Color(GameConfig.AMBIENT_DARKNESS + 0.03, GameConfig.AMBIENT_DARKNESS,
+			GameConfig.AMBIENT_DARKNESS)
 	add_child(cm)
 
 
@@ -158,6 +167,14 @@ func _build_ground() -> void:
 	rect.size = Vector2(GameConfig.MAP_SIZE, GameConfig.MAP_SIZE)
 	rect.z_index = -100
 	world_root.add_child(rect)
+
+
+## Atlas coordinates of a tile by name, with a safe fallback.
+func _wall_coords(name: String, cols: int) -> Vector2i:
+	var idx := AnimBuilder.tile_index(name)
+	if idx < 0:
+		idx = maxi(0, AnimBuilder.tile_index("wall_brick"))
+	return Vector2i(idx % cols, idx / cols)
 
 
 func _build_tiles() -> void:
@@ -193,7 +210,11 @@ func _build_tiles() -> void:
 		Vector2(-half, -half), Vector2(half, -half),
 		Vector2(half, half), Vector2(-half, half),
 	])
-	var wall_names := ["wall_brick", "wall_wood", "wall_rock"]
+	# Every wall variant needs the collider and the light occluder, or the top and
+	# bottom pieces of a thick wall would be walk-through.
+	var wall_names: Array = []
+	for m in ["brick", "wood", "rock"]:
+		wall_names.append_array(["wall_%s" % m, "wall_%s_top" % m, "wall_%s_bot" % m])
 	for wn in wall_names:
 		var idx := AnimBuilder.tile_index(wn)
 		if idx < 0:
@@ -217,15 +238,10 @@ func _build_tiles() -> void:
 
 	var cfg: Dictionary = map_data.get("cfg", {})
 	var style := str(cfg.get("wall_style", "brick"))
-	var wall_name := "wall_brick"
+	var material := "brick"
 	match style:
-		"wood", "fence": wall_name = "wall_wood"
-		"rock": wall_name = "wall_rock"
-		"wreck": wall_name = "wall_rock"
-	var wall_idx := AnimBuilder.tile_index(wall_name)
-	if wall_idx < 0:
-		wall_idx = 0
-	var wall_coords := Vector2i(wall_idx % cols, wall_idx / cols)
+		"wood", "fence": material = "wood"
+		"rock", "wreck": material = "rock"
 
 	var floor_names := ["grass", "grass_dark", "dirt", "mud", "gravel", "concrete"]
 	var floor_indices: Array = []
@@ -236,16 +252,36 @@ func _build_tiles() -> void:
 	if floor_indices.is_empty():
 		floor_indices = [0]
 
-	var rng := RandomNumberGenerator.new()
-	rng.seed = int(map_data.get("seed", 1))
+	# Ground variants come from the realm's noise field, not from a per-tile roll:
+	# independent rolls made the floor look like static, because no patch of the
+	# same ground was ever wider than a single tile.
+	var ground: PackedByteArray = map_data.get("ground", PackedByteArray())
+	var wall_mid := _wall_coords("wall_%s" % material, cols)
+	var wall_top := _wall_coords("wall_%s_top" % material, cols)
+	var wall_bot := _wall_coords("wall_%s_bot" % material, cols)
 
 	for y in map_size:
 		for x in map_size:
 			var v := MapGenerator.at(grid, map_size, x, y)
 			if v == MapGenerator.F_WALL:
-				tile_layer.set_cell(Vector2i(x, y), 0, wall_coords)
+				# The lit edge belongs to the wall tile open to the sky, the shadow
+				# to the one open at its foot. A one-tile-thick wall is open on both
+				# sides and takes the lit edge, which is what keeps a thin wall
+				# reading as a wall.
+				var open_above := MapGenerator.at(grid, map_size, x, y - 1) == MapGenerator.F_FLOOR
+				var open_below := MapGenerator.at(grid, map_size, x, y + 1) == MapGenerator.F_FLOOR
+				var coords := wall_mid
+				if open_above:
+					coords = wall_top
+				elif open_below:
+					coords = wall_bot
+				tile_layer.set_cell(Vector2i(x, y), 0, coords)
 			else:
-				var pick: int = floor_indices[rng.randi_range(0, floor_indices.size() - 1)]
+				var gi := 0
+				if not ground.is_empty() and y * map_size + x < ground.size():
+					gi = int(ground[y * map_size + x])
+				gi = clampi(gi, 0, floor_indices.size() - 1)
+				var pick: int = floor_indices[gi]
 				tile_layer.set_cell(Vector2i(x, y), 0, Vector2i(pick % cols, pick / cols))
 
 
@@ -604,6 +640,7 @@ func _check_escape_win() -> void:
 # ---------------------------------------------------------------------------
 var _debug_match := false
 var _debug_timer := 0.0
+var _dump_map := false
 var _vault_counter := 0
 var _web_checked := false
 
@@ -713,6 +750,23 @@ func objective_positions() -> Array:
 	if hatch_node != null and hatch_node.is_open:
 		out.append({"pos": hatch_node.global_position, "done": true, "kind": "hatch"})
 	return out
+
+
+func _dump_map_now() -> void:
+	var dir := "user://"
+	MapDump.report(map_data, self)
+	var out := OS.get_environment("DUMP_OUT")
+	if out == "":
+		out = "res://build"
+	DirAccess.make_dir_recursive_absolute(out)
+	for i in 6:
+		var s := (i * 7919) + 13
+		var md := MapGenerator.generate(s, map_id)
+		MapDump.report(md, self)
+		var nm := "%s/map_%s_%d.png" % [out, map_id, s]
+		MapDump.render(md, self, nm)
+	print("[dump] done")
+	get_tree().quit()
 
 
 func _debug_log() -> void:

@@ -882,12 +882,18 @@
         "blood_floor",
         "snow",
         "metal",
-        "wall_brick",
-        "wall_wood",
-        "wall_rock",
         "water",
         "crop",
-        "concrete"
+        "concrete",
+        "wall_brick",
+        "wall_brick_top",
+        "wall_brick_bot",
+        "wall_wood",
+        "wall_wood_top",
+        "wall_wood_bot",
+        "wall_rock",
+        "wall_rock_top",
+        "wall_rock_bot"
       ]
     },
     "icons": {

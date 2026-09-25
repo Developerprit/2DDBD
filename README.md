@@ -47,9 +47,27 @@ Clone it and you can reproduce the entire asset set byte for byte.
 
 ### Realms
 - 5 maps: Auto Haven Wreckers / MacMillan Estate / Coldwind Farm / Yamaoka Estate / Ormond Lake Mine
-- Seed-driven procedural generation: landmarks, obstacle clusters, pallet-window loops, objective placement and spawns are all reproducible
-- Walls block movement **and line of sight** (light occluders baked into the TileSet), which is what makes the chases feel claustrophobic
+- **Structure-first generation.** The grid is divided into 16x16 plots and each one is
+  assigned a blueprint -- main building, compound, outdoor gym (a U-shaped wall with a
+  pallet in its mouth), shed, or an open yard of cover. The realm is *built*, not
+  sprinkled: the alternative (random wall blobs on an open field) produces 85% bare
+  floor, no corridors and nothing to loop around.
+- **Each realm has its own layout recipe**, so the five play differently rather than
+  being one place in five colour schemes. Wreckers is a scatter of sheds, the farm is
+  mostly open ground, Ormond is the densest with buildings.
+- The main building is a 13x13 ring with an interior loop: two circuits, three doorways
+  and two windows, which is what makes a long chase possible.
+- **Windows are only cut where both sides are confirmed walkable**, and pallets only
+  land on genuine pinch points -- reachability is guaranteed by construction, not luck.
+- Walls block movement **and line of sight** (light occluders baked into the TileSet)
+- Ground texture is sampled from **value noise**, so patches of the same ground clump
+  together instead of scattering per tile like television static
+- Seed-driven and fully reproducible; the realm id is mixed into the seed, so one trial
+  seed still yields five genuinely different layouts
 - Minimap on `Tab` marking discovered generators, hooks, gates and the hatch
+- Ships a **map inspection tool**: `--dump-map` renders a realm to PNG and prints a
+  readability report (openness, reachability, corridor ratio, generator spacing, hook
+  coverage). This is how the layout was measured rather than guessed at.
 
 ### Red stain and vision occlusion
 - **Red stain**: a cone of light on the ground in the direction the killer faces
@@ -200,6 +218,8 @@ direct data channel, no signalling server involved).
 - The AI completes the whole loop (repair, flee, rescue, heal, chase, hook) but its pallet-window
   mind games are still fairly basic.
 - Text uses Godot's built-in font; a pixel bitmap font is on the roadmap.
+- Realm generation is deterministic: the same seed always builds the same realm, so
+  multiplayer only needs to synchronise the seed and the realm id.
 - Bloodweb costs and tier widths are pure functions, so the economy can be
   rebalanced later without invalidating anybody's save.
 

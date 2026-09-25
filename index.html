@@ -601,32 +601,63 @@ footer .meta a:hover { color: var(--ink); border-color: var(--blood); }
     <div class="realm">
       <span class="n">R-01</span>
       <div><h4 data-en="Auto Haven Wreckers" data-zh="汽车坟场">汽车坟场</h4>
-        <small data-en="Wrecked cars as line-of-sight blockers; loose pallets between hulls." data-zh="废车作为视线的遮挡；车体之间散落着木板。">废车作为视线的遮挡；车体之间散落着木板。</small></div>
+        <small data-en="A scatter of small sheds and cover fields. Buildings are few and far apart; the wreckers themselves do the blocking." data-zh="散乱的小屋群与掩体场。建筑少而分散，真正挡视线的是那些废车残骸。">散乱的小屋群与掩体场。建筑少而分散，真正挡视线的是那些废车残骸。</small></div>
       <span class="swatch"><i style="background:#2b2b24"></i><i style="background:#4a4636"></i><i style="background:#33332a"></i></span>
     </div>
     <div class="realm">
       <span class="n">R-02</span>
       <div><h4 data-en="MacMillan Estate" data-zh="麦克米伦庄园">麦克米伦庄园</h4>
-        <small data-en="Brick compounds with double doorways — the tightest loops in the game." data-zh="砖砌建筑配双向门洞 —— 全游戏最紧凑的绕圈空间。">砖砌建筑配双向门洞 —— 全游戏最紧凑的绕圈空间。</small></div>
+        <small data-en="Dense with brick compounds, plus one large ring building with an interior corridor. The tightest loops in the game." data-zh="砖砌建筑密集，另有一栋带内部环廊的大型主楼 —— 全游戏最紧凑的绕圈空间。">砖砌建筑密集，另有一栋带内部环廊的大型主楼 —— 全游戏最紧凑的绕圈空间。</small></div>
       <span class="swatch"><i style="background:#2a2820"></i><i style="background:#5a4a30"></i><i style="background:#343026"></i></span>
     </div>
     <div class="realm">
       <span class="n">R-03</span>
       <div><h4 data-en="Coldwind Farm" data-zh="冷风农场">冷风农场</h4>
-        <small data-en="Open crop fields with sparse cover — the killer sees you from far away." data-zh="开阔的农田与稀疏掩体 —— 杀手能从很远的地方看见你。">开阔的农田与稀疏掩体 —— 杀手能从很远的地方看见你。</small></div>
+        <small data-en="Mostly open ground with a high density of fence cover. Buildings are rare here — the killer sees you from far away, and the fences are all you get." data-zh="大面积开阔地配高密度栅栏掩体。建筑最少 —— 杀手能从很远看见你，而你能依靠的只有那些栅栏。">大面积开阔地配高密度栅栏掩体。建筑最少 —— 杀手能从很远看见你，而你能依靠的只有那些栅栏。</small></div>
       <span class="swatch"><i style="background:#24281d"></i><i style="background:#6a5a2e"></i><i style="background:#3f4a2a"></i></span>
     </div>
     <div class="realm">
       <span class="n">R-04</span>
       <div><h4 data-en="Yamaoka Estate" data-zh="山冈宅邸">山冈宅邸</h4>
-        <small data-en="Dense wooden interiors; the pallet density here is the highest." data-zh="密集的木质内构；这里的木板密度最高。">密集的木质内构；这里的木板密度最高。</small></div>
+        <small data-en="The most U-shaped gyms of any realm — this is where the pallet-window loops are densest." data-zh="U 形体操区最多的一张图 —— 这里的板窗循环最密。">U 形体操区最多的一张图 —— 这里的板窗循环最密。</small></div>
       <span class="swatch"><i style="background:#221f26"></i><i style="background:#5a3a44"></i><i style="background:#2f2a33"></i></span>
     </div>
     <div class="realm">
       <span class="n">R-05</span>
       <div><h4 data-en="Ormond Lake Mine" data-zh="奥蒙德矿井">奥蒙德矿井</h4>
-        <small data-en="Rock walls with long sightlines down the tunnels." data-zh="岩壁构成隧道，视线能沿隧道拉出很长。">岩壁构成隧道，视线能沿隧道拉出很长。</small></div>
+        <small data-en="The densest realm: the most buildings, the fewest open yards. Sightlines are short and the map reads as a small town." data-zh="最密的一张图：建筑最多、空地最少。视线很短，整张图读起来像一座小镇。">最密的一张图：建筑最多、空地最少。视线很短，整张图读起来像一座小镇。</small></div>
       <span class="swatch"><i style="background:#26292e"></i><i style="background:#5d6470"></i><i style="background:#333a42"></i></span>
+    </div>
+  </div>
+
+  <div class="grid rise" style="margin-top:1.25rem">
+    <div class="cell w7">
+      <h4 data-en="How a realm gets built" data-zh="一张地图是怎么造出来的">一张地图是怎么造出来的</h4>
+      <p data-en="Not by scattering random walls on an open field — that produces a plane with noise on it, no corridors, and nothing to loop around. Measured, the old approach gave 85% bare floor and 0.4% corridor tiles."
+         data-zh="不是在空地上随机撒墙 —— 那样只会得到一块撒了噪点的平地，没有走廊，也没有任何能绕圈的地方。实测旧做法的开放率是 85%，走廊格只占 0.4%。">不是在空地上随机撒墙 —— 那样只会得到一块撒了噪点的平地，没有走廊，也没有任何能绕圈的地方。实测旧做法的开放率是 85%，走廊格只占 0.4%。</p>
+      <ul>
+        <li data-en="1. Plan — the 80x80 grid becomes 25 plots of 16x16, each given a blueprint"
+            data-zh="1. 规划 —— 80×80 的网格切成 25 个 16×16 地块，每块分配一份蓝图">1. 规划 —— 80×80 的网格切成 25 个 16×16 地块，每块分配一份蓝图</li>
+        <li data-en="2. Build — wall rings with doorways cut on purpose, plus an interior corridor to loop"
+            data-zh="2. 建造 —— 外墙按需开门洞，内部再套一圈环廊可以绕行">2. 建造 —— 外墙按需开门洞，内部再套一圈环廊可以绕行</li>
+        <li data-en="3. Dress — open plots get orthogonal cover: fence runs, L-corners, parallel pairs"
+            data-zh="3. 填充 —— 空地块铺正交掩体：栅栏段、L 形转角、平行双墙">3. 填充 —— 空地块铺正交掩体：栅栏段、L 形转角、平行双墙</li>
+        <li data-en="4. Place — generators hug walls, hooks guarantee generator coverage, every pallet and window came out of step 2"
+            data-zh="4. 落位 —— 发电机贴墙、钩子保证覆盖每台发电机，而所有板窗都来自第 2 步">4. 落位 —— 发电机贴墙、钩子保证覆盖每台发电机，而所有板窗都来自第 2 步</li>
+      </ul>
+    </div>
+    <div class="cell w5">
+      <h4 data-en="Measured, not guessed" data-zh="用数据验收，而不是靠感觉">用数据验收，而不是靠感觉</h4>
+      <p data-en="The project ships a map inspection tool. It renders a realm to PNG and prints the numbers below, which is how every change in this area was judged."
+         data-zh="项目自带一个地图检查工具：把生成结果渲染成 PNG 并打印下面这些数字。这个模块的每一次改动都是拿它验收的。">项目自带一个地图检查工具：把生成结果渲染成 PNG 并打印下面这些数字。这个模块的每一次改动都是拿它验收的。</p>
+      <ul>
+        <li data-en="Unreachable pallets and windows: 11-17 before, 0 after"
+            data-zh="不可达的板与窗：改前 11~17 个，改后 0 个">不可达的板与窗：改前 11~17 个，改后 0 个</li>
+        <li data-en="Mean distance from a walkable tile to the nearest wall: 2.8 tiles"
+            data-zh="每格到最近墙的平均距离：2.8 格">每格到最近墙的平均距离：2.8 格</li>
+        <li data-en="Hooks: 12 (the original's number) covering every generator within 13 tiles"
+            data-zh="钩子 12 个（原作数量），且每台发电机 13 格内必有钩子">钩子 12 个（原作数量），且每台发电机 13 格内必有钩子</li>
+      </ul>
     </div>
   </div>
 </section>

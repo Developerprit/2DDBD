@@ -90,8 +90,10 @@ func setup_base(p_team: int, sprite_set: String, is_killer_sprite: bool,
 	light = PointLight2D.new()
 	light.texture = _radial(128)
 	light.color = Color(1, 0.96, 0.88)
-	light.energy = 0.92 if team == Enums.Team.SURVIVOR else 0.62
-	light.texture_scale = 1.7
+	# Bigger and stronger than before: at 1.7 the lit pool was barely wider than the
+	# sprite, so the player could not read the terrain around them.
+	light.energy = 1.15 if team == Enums.Team.SURVIVOR else 0.85
+	light.texture_scale = 2.6
 	light.position = Vector2(0, -6)
 	light.shadow_enabled = true
 	light.shadow_color = Color(0, 0, 0, 0.55)

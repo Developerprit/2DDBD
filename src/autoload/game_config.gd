@@ -106,7 +106,11 @@ const SCRATCH_FOLLOW_RADIUS := 256.0    ## 16 m, per design
 ## --- Visibility occlusion ---------------------------------------------------
 ## Ambient light level applied by a CanvasModulate. Walls carry light occluders,
 ## so anything behind one falls into shadow -- the visual half of line of sight.
-const AMBIENT_DARKNESS := 0.46          ## 1.0 = untouched, 0.0 = pitch black
+##
+## 0.46 was too dark to play: a rendered frame showed the terrain almost completely
+## lost in shadow, so the layout you had just generated was invisible. The point is
+## to make the far side of a wall fall dark, not to make the floor unreadable.
+const AMBIENT_DARKNESS := 0.64          ## 1.0 = untouched, 0.0 = pitch black
 ## How transparent an enemy becomes when a wall is between you and them.
 const OCCLUDED_ALPHA := 0.30
 const BLOODLUST_RESET := 4.0           ## seconds without a chase to lose a tier

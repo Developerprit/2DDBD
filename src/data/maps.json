@@ -3,80 +3,205 @@
     "id": "autohaven",
     "name_key": "realm.autohaven",
     "tiles": 80,
-    "palette": {"ground": "#2b2b24", "ground2": "#33332a", "detail": "#4a4636", "wall": "#1b1a16"},
+    "palette": {
+      "ground": "#2b2b24",
+      "ground2": "#33332a",
+      "detail": "#4a4636",
+      "wall": "#1b1a16"
+    },
     "wall_style": "wreck",
     "wall_density": 0.18,
-    "prop_mix": {"car": 10, "tire": 14, "crate": 12, "barrel": 8},
+    "prop_mix": {
+      "car": 10,
+      "tire": 14,
+      "crate": 12,
+      "barrel": 8
+    },
     "pallet_count": 12,
     "window_count": 10,
     "locker_count": 7,
     "chest_count": 3,
     "grass_tint": "#3a3826",
     "ambient": "#1a1c22",
-    "fog": "#2c2a26"
+    "fog": "#2c2a26",
+    "layout": {
+      "compounds": [
+        3,
+        4
+      ],
+      "gyms": [
+        6,
+        8
+      ],
+      "sheds": [
+        5,
+        7
+      ],
+      "yards": 0.7
+    }
   },
   "macmillan": {
     "id": "macmillan",
     "name_key": "realm.macmillan",
     "tiles": 80,
-    "palette": {"ground": "#2a2820", "ground2": "#343026", "detail": "#5a4a30", "wall": "#191712"},
+    "palette": {
+      "ground": "#2a2820",
+      "ground2": "#343026",
+      "detail": "#5a4a30",
+      "wall": "#191712"
+    },
     "wall_style": "brick",
     "wall_density": 0.22,
-    "prop_mix": {"crate": 16, "barrel": 10, "pallet_prop": 8, "rock": 6},
+    "prop_mix": {
+      "crate": 16,
+      "barrel": 10,
+      "pallet_prop": 8,
+      "rock": 6
+    },
     "pallet_count": 14,
     "window_count": 12,
     "locker_count": 6,
     "chest_count": 3,
     "grass_tint": "#35321f",
     "ambient": "#1c1a16",
-    "fog": "#302c22"
+    "fog": "#302c22",
+    "layout": {
+      "compounds": [
+        5,
+        7
+      ],
+      "gyms": [
+        4,
+        6
+      ],
+      "sheds": [
+        3,
+        5
+      ],
+      "yards": 0.6
+    }
   },
   "coldwind": {
     "id": "coldwind",
     "name_key": "realm.coldwind",
     "tiles": 80,
-    "palette": {"ground": "#24281d", "ground2": "#2d3224", "detail": "#6a5a2e", "wall": "#16180f"},
+    "palette": {
+      "ground": "#24281d",
+      "ground2": "#2d3224",
+      "detail": "#6a5a2e",
+      "wall": "#16180f"
+    },
     "wall_style": "fence",
     "wall_density": 0.16,
-    "prop_mix": {"hay": 12, "tractor": 4, "crate": 10, "tree": 14},
+    "prop_mix": {
+      "hay": 12,
+      "tractor": 4,
+      "crate": 10,
+      "tree": 14
+    },
     "pallet_count": 12,
     "window_count": 10,
     "locker_count": 5,
     "chest_count": 3,
     "grass_tint": "#3f4a2a",
     "ambient": "#1a1f16",
-    "fog": "#2a3220"
+    "fog": "#2a3220",
+    "layout": {
+      "compounds": [
+        2,
+        3
+      ],
+      "gyms": [
+        6,
+        7
+      ],
+      "sheds": [
+        4,
+        5
+      ],
+      "yards": 0.9
+    }
   },
   "yamaoka": {
     "id": "yamaoka",
     "name_key": "realm.yamaoka",
     "tiles": 80,
-    "palette": {"ground": "#221f26", "ground2": "#2b2730", "detail": "#5a3a44", "wall": "#141118"},
+    "palette": {
+      "ground": "#221f26",
+      "ground2": "#2b2730",
+      "detail": "#5a3a44",
+      "wall": "#141118"
+    },
     "wall_style": "wood",
     "wall_density": 0.24,
-    "prop_mix": {"lantern": 8, "shrine": 5, "crate": 8, "tree": 10},
+    "prop_mix": {
+      "lantern": 8,
+      "shrine": 5,
+      "crate": 8,
+      "tree": 10
+    },
     "pallet_count": 13,
     "window_count": 12,
     "locker_count": 6,
     "chest_count": 3,
     "grass_tint": "#2f2a33",
     "ambient": "#16131a",
-    "fog": "#2a2130"
+    "fog": "#2a2130",
+    "layout": {
+      "compounds": [
+        4,
+        5
+      ],
+      "gyms": [
+        7,
+        9
+      ],
+      "sheds": [
+        2,
+        4
+      ],
+      "yards": 0.65
+    }
   },
   "ormond": {
     "id": "ormond",
     "name_key": "realm.ormond",
     "tiles": 80,
-    "palette": {"ground": "#26292e", "ground2": "#2e3238", "detail": "#5d6470", "wall": "#161a1e"},
+    "palette": {
+      "ground": "#26292e",
+      "ground2": "#2e3238",
+      "detail": "#5d6470",
+      "wall": "#161a1e"
+    },
     "wall_style": "rock",
     "wall_density": 0.2,
-    "prop_mix": {"rock": 16, "minecart": 4, "crate": 10, "barrel": 8},
+    "prop_mix": {
+      "rock": 16,
+      "minecart": 4,
+      "crate": 10,
+      "barrel": 8
+    },
     "pallet_count": 12,
     "window_count": 11,
     "locker_count": 6,
     "chest_count": 3,
     "grass_tint": "#333a42",
     "ambient": "#181c22",
-    "fog": "#282e36"
+    "fog": "#282e36",
+    "layout": {
+      "compounds": [
+        6,
+        8
+      ],
+      "gyms": [
+        3,
+        5
+      ],
+      "sheds": [
+        4,
+        6
+      ],
+      "yards": 0.55
+    }
   }
 }

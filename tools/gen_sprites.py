@@ -873,13 +873,26 @@ TILE_DEFS = [
     ("blood_floor", "#2c2222", "#3a2a26"),
     ("snow", "#3a4048", "#454c55"),
     ("metal", "#2a2e33", "#383d44"),
-    ("wall_brick", "#4a3a2a", "#5a4632"),
-    ("wall_wood", "#42341f", "#514026"),
-    ("wall_rock", "#3a3d42", "#474b51"),
     ("water", "#1c2a30", "#24363e"),
     ("crop", "#3f4626", "#4b5430"),
     ("concrete", "#31343a", "#3b3f46"),
 ]
+
+# Walls come in three vertical variants per material. Giving every wall tile its own
+# top highlight and bottom shadow made a wall several tiles tall repeat that banding,
+# so it read as a stack of planks instead of as a wall. Now only the piece genuinely
+# open above gets the lit edge and only the piece open below gets the shadow; the
+# body in between is plain, so a thick wall reads as one solid mass.
+WALL_MATERIALS = [
+    ("brick", "#4a3a2a", "#5a4632"),
+    ("wood", "#42341f", "#514026"),
+    ("rock", "#3a3d42", "#474b51"),
+]
+
+for _m, _base, _alt in WALL_MATERIALS:
+    TILE_DEFS.append(("wall_%s" % _m, _base, _alt))         # body
+    TILE_DEFS.append(("wall_%s_top" % _m, _base, _alt))     # open above
+    TILE_DEFS.append(("wall_%s_bot" % _m, _base, _alt))     # open below
 
 
 def make_tile_atlas(cols=8):
@@ -902,11 +915,36 @@ def make_tile_atlas(cols=8):
                 elif v > 0.72:
                     col = mix(b, a, 0.45)
                 if name.startswith("wall"):
-                    # walls get a bevel so they read as solid
-                    if y < 2:
-                        col = mix(col, rgba("#ffffff"), 0.10)
-                    if y > 13:
-                        col = shade(col, 0.62)
+                    if name.endswith("_top"):
+                        # Only the row of wall tiles that is open above is lit.
+                        if y < 3:
+                            col = mix(col, rgba("#ffffff"), 0.16)
+                        if y < 1:
+                            col = mix(col, rgba("#ffffff"), 0.22)
+                    elif name.endswith("_bot"):
+                        if y > 12:
+                            col = shade(col, 0.55)
+                    # The body carries no bevel at all, so a thick wall is one
+                    # continuous surface rather than a stack of bands.
+
+                    # Material texture, so a wall reads as built rather than painted.
+                    if "_brick" in name:
+                        row = y // 4
+                        offx = (row % 2) * 4
+                        if y % 4 == 0:
+                            col = shade(col, 0.80)
+                        elif (x + offx) % 8 == 0:
+                            col = shade(col, 0.86)
+                    elif "_wood" in name:
+                        if x % 8 == 0:
+                            col = shade(col, 0.80)
+                        if (y * 5 + x * 3) % 19 == 0:
+                            col = shade(col, 0.88)
+                    elif "_rock" in name:
+                        if (x * 7 + y * 13) % 23 == 0:
+                            col = shade(col, 0.84)
+                        if (x * 3 + y * 11) % 29 == 0:
+                            col = mix(col, rgba("#ffffff"), 0.05)
                 if name == "water":
                     if (x + y) % 5 == 0:
                         col = mix(col, rgba("#7fa8b8"), 0.30)
