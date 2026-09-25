@@ -24,6 +24,9 @@ var carried: Survivor = null
 var current_hook_target: Hook = null
 
 # --- power: bear traps -----------------------------------------------------
+## The red cone on the ground. Survivors read it to know where he is looking.
+var red_stain: RedStain = null
+
 var trap_stock := GameConfig.TRAP_START
 var placed_traps: Array = []
 var trap_on_ground: BearTrap = null
@@ -55,7 +58,27 @@ func setup(p_team: int, sprite_set: String, p_name: String, pid: int, ai: bool,
 	if addons.has("trapper_sack"):
 		trap_stock += 2
 	_register_states()
+	_build_red_stain()
 	machine.change("move")
+
+
+func _build_red_stain() -> void:
+	red_stain = RedStain.new()
+	red_stain.name = "RedStain"
+	add_child(red_stain)
+	red_stain.configure(GameConfig.RED_STAIN_RANGE / GameConfig.TILE,
+			GameConfig.RED_STAIN_ANGLE_DEG)
+	red_stain.set_direction(facing_rad, 0)
+
+
+## True when `pos` falls inside the killer's red stain cone. Used by the
+## survivor AI: standing in the stain is how you get hit.
+func is_in_red_stain(pos: Vector2) -> bool:
+	var to := pos - global_position
+	if to.length() > GameConfig.RED_STAIN_RANGE:
+		return false
+	return absf(Utils.angle_delta(facing_rad, to.angle())) \
+			<= deg_to_rad(GameConfig.RED_STAIN_ANGLE_DEG) * 0.5
 
 
 func _rebuild_killer_mods() -> void:
@@ -122,6 +145,8 @@ func _physics_process(delta: float) -> void:
 		_read_input()
 	_update_power(delta)
 	_update_terror(delta)
+	if red_stain != null:
+		red_stain.set_direction(facing_rad, bloodlust_tier)
 	if attack_cooldown > 0.0:
 		attack_cooldown -= delta
 	if blinding_time > 0.0:
@@ -278,13 +303,7 @@ func nearest_visible_survivor(include_hidden := false) -> Node:
 # Bloodlust
 # ---------------------------------------------------------------------------
 func _update_bloodlust(delta: float) -> void:
-	var visible := nearest_visible_survivor()
-	if visible != null:
-		if chase_target != visible:
-			chase_target = visible
-			chase_accum = 0.0
-			if bloodlust_tier != 0:
-				_set_bloodlust(0)
+	if _is_in_chase():
 		chase_accum += delta
 		_bloodlust_decay = 0.0
 	else:
@@ -301,6 +320,24 @@ func _update_bloodlust(delta: float) -> void:
 			tier = i + 1
 	if tier != bloodlust_tier:
 		_set_bloodlust(tier)
+
+
+## "In a chase" is deliberately looser than "has line of sight on someone":
+## breaking eye contact around a corner must not restart the clock, and a
+## survivor who is right next to you keeps it running even out of view.
+func _is_in_chase() -> bool:
+	var visible := nearest_visible_survivor()
+	if visible != null:
+		if chase_target != visible:
+			chase_target = visible
+			chase_accum = 0.0
+			if bloodlust_tier != 0:
+				_set_bloodlust(0)
+		return true
+	if chase_target != null and is_instance_valid(chase_target):
+		var d := global_position.distance_to((chase_target as Node2D).global_position)
+		return d < GameConfig.BLOODLUST_KEEP_RANGE
+	return false
 
 
 func _set_bloodlust(t: int) -> void:
@@ -716,7 +753,7 @@ class MoveState:
 	func enter(_msg: Dictionary = {}) -> void:
 		var k := actor as Killer
 		if k.sprite != null:
-			k.sprite.modulate = Color.WHITE
+			k.sprite.self_modulate = Color.WHITE
 
 	func physics(delta: float) -> void:
 		var k := actor as Killer
@@ -976,12 +1013,12 @@ class StunState:
 		k.velocity = Vector2.ZERO
 		k.play_anim("stun", true)
 		if k.sprite != null:
-			k.sprite.modulate = Color(1.4, 1.0, 1.0)
+			k.sprite.self_modulate = Color(1.4, 1.0, 1.0)
 
 	func exit() -> void:
 		var k := actor as Killer
 		if k.sprite != null:
-			k.sprite.modulate = Color.WHITE
+			k.sprite.self_modulate = Color.WHITE
 
 	func physics(delta: float) -> void:
 		var k := actor as Killer

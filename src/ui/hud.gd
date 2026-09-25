@@ -33,6 +33,8 @@ var _last_prompt := ""
 # --- pause overlay ---------------------------------------------------------
 var pause_root: Control
 var paused := false
+var bl_vignette: Control
+var _vignette_tier := 0
 
 
 func _ready() -> void:
@@ -68,6 +70,7 @@ func _build() -> void:
 	_build_toasts()
 	_build_map_overlay()
 	_build_pause_overlay()
+	_build_bloodlust_vignette()
 
 	fps_label = UITheme.dim("", 9)
 	fps_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
@@ -449,6 +452,32 @@ func _sync_dial() -> void:
 		dial.queue_redraw()
 
 
+## A red bleed around the screen edges while Bloodlust is active. The tier bar
+## in the corner is easy to miss mid-chase; the vignette is not.
+func _build_bloodlust_vignette() -> void:
+	bl_vignette = Control.new()
+	bl_vignette.name = "BloodlustVignette"
+	bl_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bl_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bl_vignette.visible = false
+	bl_vignette.draw.connect(_draw_vignette)
+	root.add_child(bl_vignette)
+
+
+func _draw_vignette() -> void:
+	var s := bl_vignette.size
+	var steps := 10
+	for i in steps:
+		var t := float(i) / float(steps)
+		var a := (0.075 + 0.02 * float(_vignette_tier)) * pow(1.0 - t, 1.7)
+		var col := Color(0.60, 0.05, 0.04, a)
+		var w := 130.0 * (1.0 - t)
+		bl_vignette.draw_rect(Rect2(0, 0, s.x, w * 0.42), col)
+		bl_vignette.draw_rect(Rect2(0, s.y - w * 0.42, s.x, w * 0.42), col)
+		bl_vignette.draw_rect(Rect2(0, 0, w * 0.55, s.y), col)
+		bl_vignette.draw_rect(Rect2(s.x - w * 0.55, 0, w * 0.55, s.y), col)
+
+
 func _sync_killer_panel() -> void:
 	if mc == null:
 		return
@@ -461,6 +490,12 @@ func _sync_killer_panel() -> void:
 		return
 	power_label.text = "%s: %d" % [Locale.t("power.bear_trap"), k.trap_stock]
 	bloodlust_bar.value = k.bloodlust_tier
+	if bl_vignette != null:
+		var show := k.bloodlust_tier > 0
+		bl_vignette.visible = show
+		if show:
+			_vignette_tier = k.bloodlust_tier
+			bl_vignette.queue_redraw()
 	if k.held_item == "" and k.is_carrying:
 		item_label.text = Locale.t("act.hook")
 	elif k.attack_cooldown > 0.0:

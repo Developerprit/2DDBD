@@ -10,7 +10,12 @@ extends RefCounted
 ## Uses the match AStarGrid2D for movement so the killer never grinds into a
 ## wall the way naive steering would.
 
-enum Mode { PATROL, CHASE, SEARCH, CARRY }
+## Priority order, highest first:
+##   CHASE   a survivor is in actual line of sight -- nothing beats this
+##   SCRATCH fresh scratch marks within 16 m: someone went this way *just now*
+##   SEARCH  sweep the last known position after losing the trail
+##   PATROL  walk the objectives when the map has gone quiet
+enum Mode { PATROL, CHASE, SEARCH, CARRY, SCRATCH }
 
 var k: Killer
 var mode: int = Mode.PATROL
@@ -31,6 +36,10 @@ var _anchor_pos := Vector2.ZERO
 var _anchor_time := 0.0
 var _patrol_hold := 0.0
 var _unstick_count := 0
+
+## Debug counter: how often the killer switched to following scratch marks.
+static var scratch_follows := 0
+static var last_mode := 0
 
 const REPATH_INTERVAL := 0.7
 const ATTACK_RANGE := 2.0 * 16.0
@@ -64,20 +73,40 @@ func think(delta: float) -> void:
 		_mode_carry(delta)
 		return
 
+	# Priority 1: a survivor we can see always wins.
 	var seen := k.nearest_visible_survivor()
+	# Priority 2: the freshest trail within 16 m.
+	var trail := _scratch_lead(GameConfig.SCRATCH_FOLLOW_RADIUS)
+
 	if seen != null:
 		target = seen
 		last_seen = seen.global_position
 		mode = Mode.CHASE
 		search_timer = 6.0
 	elif mode == Mode.CHASE:
-		mode = Mode.SEARCH if search_timer > 0.0 else Mode.PATROL
+		# Just lost sight of him -- the trail is the best lead we have.
+		if search_timer <= 0.0:
+			mode = Mode.PATROL
+		else:
+			mode = Mode.SCRATCH if trail != Vector2.ZERO else Mode.SEARCH
+	elif mode == Mode.SCRATCH:
+		if trail == Vector2.ZERO:
+			mode = Mode.SEARCH if search_timer > 0.0 else Mode.PATROL
 	elif mode == Mode.SEARCH and search_timer <= 0.0:
-		mode = Mode.PATROL
+		mode = Mode.PATROL if trail == Vector2.ZERO else Mode.SCRATCH
+	elif mode == Mode.PATROL and trail != Vector2.ZERO:
+		mode = Mode.SCRATCH
+
+	if mode != last_mode:
+		if mode == Mode.SCRATCH:
+			scratch_follows += 1
+		last_mode = mode
 
 	match mode:
 		Mode.CHASE:
 			_mode_chase(delta)
+		Mode.SCRATCH:
+			_mode_scratch(delta)
 		Mode.SEARCH:
 			_mode_search(delta)
 		_:
@@ -112,6 +141,52 @@ func _mode_chase(delta: float) -> void:
 			and randf() < 0.002:
 		if k.machine.has_state("place_trap"):
 			k.machine.force("place_trap", {"mode": "place"})
+
+
+## Walks the freshest scratch trail. Scratch marks only live for ten seconds,
+## so anything inside 16 m is genuinely recent -- this is what turns "he ran off
+## somewhere" into an actual pursuit.
+func _mode_scratch(delta: float) -> void:
+	var lead := _scratch_lead(GameConfig.SCRATCH_FOLLOW_RADIUS)
+	if lead == Vector2.ZERO:
+		mode = Mode.SEARCH
+		return
+	# Only re-anchor when the lead actually moves, otherwise the target thrashes
+	# between neighbouring prints and pathing never settles.
+	if goal.distance_to(lead) > GameConfig.TILE:
+		goal = lead
+		path.clear()
+		repath_timer = 0.0
+	_follow(delta)
+
+
+## Returns a point *past* the freshest scratch marks inside `radius`, so the
+## killer keeps moving along the trail instead of stopping on the last print.
+## Vector2.ZERO means nothing fresh is in range.
+func _scratch_lead(radius: float) -> Vector2:
+	var marks: Array = []
+	var now := Time.get_ticks_msec()
+	for n in k.get_tree().get_nodes_in_group("scratch_mark"):
+		var n2 := n as Node2D
+		if n2 == null or not is_instance_valid(n2):
+			continue
+		if k.global_position.distance_to(n2.global_position) > radius:
+			continue
+		marks.append({"pos": n2.global_position, "age": now - int(n2.get_meta("born", 0))})
+	if marks.is_empty():
+		return Vector2.ZERO
+
+	marks.sort_custom(func(a, b) -> bool: return int(a["age"]) < int(b["age"]))
+	var newest: Vector2 = marks[0]["pos"]
+	if marks.size() == 1:
+		return newest
+
+	# Use an older print to recover the direction of travel, then extrapolate.
+	var older: Vector2 = marks[mini(3, marks.size() - 1)]["pos"]
+	var dir := newest - older
+	if dir.length() < 1.0:
+		return newest
+	return newest + dir.normalized() * GameConfig.TILE * 6.0
 
 
 func _mode_carry(_delta: float) -> void:

@@ -51,6 +51,19 @@ Clone it and you can reproduce the entire asset set byte for byte.
 - Walls block movement **and line of sight** (light occluders baked into the TileSet), which is what makes the chases feel claustrophobic
 - Minimap on `Tab` marking discovered generators, hooks, gates and the hatch
 
+### Red stain and vision occlusion
+- **Red stain**: a cone of light on the ground in the direction the killer faces
+  (11 m / 54 deg). Survivors watch it sweep across the floor to read which way he is
+  committing, even through a wall -- one of the original's most important readability tools
+- **Vision occlusion**: ambient darkness + wall light occluders + per-character point
+  lights with shadows, so the far side of a wall genuinely falls dark; enemies behind a
+  wall fade to translucent, and a survivor in a locker is not visible at all
+- **Bloodlust** rises through three tiers at 15 / 25 / 35 s of chase; the stain deepens
+  and a red vignette bleeds into the killer's screen edges. Pallet stuns or genuinely
+  losing the target reset it (with a 16 m grace window)
+
+### Systems
+
 ### Bloodweb progression
 - Every character owns a private ring of nodes: perks, items, add-ons and bloodpoint caches
 - Higher tiers are wider and more expensive; taking 60% of a tier unlocks the next one

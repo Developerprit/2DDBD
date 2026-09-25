@@ -94,7 +94,26 @@ const CROUCH_PROFILE_SCALE := 0.45     ## how much smaller a crouching survivor 
 # Bloodlust
 # ---------------------------------------------------------------------------
 const BLOODLUST_TIERS := [15.0, 25.0, 35.0]
+
+## --- Red stain: the cone of light the killer casts where he is looking ------
+## Survivors read this to know which way he is committing, even through a wall.
+const RED_STAIN_RANGE := 176.0          ## 11 m
+const RED_STAIN_ANGLE_DEG := 54.0
+
+## --- Scratch-mark following (killer AI) ------------------------------------
+const SCRATCH_FOLLOW_RADIUS := 256.0    ## 16 m, per design
+
+## --- Visibility occlusion ---------------------------------------------------
+## Ambient light level applied by a CanvasModulate. Walls carry light occluders,
+## so anything behind one falls into shadow -- the visual half of line of sight.
+const AMBIENT_DARKNESS := 0.46          ## 1.0 = untouched, 0.0 = pitch black
+## How transparent an enemy becomes when a wall is between you and them.
+const OCCLUDED_ALPHA := 0.30
 const BLOODLUST_RESET := 4.0           ## seconds without a chase to lose a tier
+## A chase does not end the instant line of sight breaks. As long as the target
+## is still this close the Bloodlust clock keeps running -- without a grace
+## window the timer resets constantly and the tiers never fire.
+const BLOODLUST_KEEP_RANGE := 256.0     ## 16 m           ## seconds without a chase to lose a tier
 
 # ---------------------------------------------------------------------------
 # Bear trap (Trapper power)

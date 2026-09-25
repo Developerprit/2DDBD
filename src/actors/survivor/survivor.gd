@@ -827,13 +827,10 @@ class MoveState:
 	func enter(_msg: Dictionary = {}) -> void:
 		var s := actor as Survivor
 		if s.sprite != null:
-			s.sprite.modulate = Color.WHITE
+			s.sprite.self_modulate = Color.WHITE
 
 	func physics(delta: float) -> void:
 		var s := actor as Survivor
-		if s.is_ai:
-			s.apply_movement(delta)
-			return
 		s.apply_movement(delta)
 
 	func update(delta: float) -> void:

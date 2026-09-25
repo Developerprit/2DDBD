@@ -129,10 +129,23 @@ func _build_realm(seed_value: int) -> void:
 	world_root.name = "World"
 	add_child(world_root)
 
+	_build_ambient()
 	_build_ground()
 	_build_tiles()
 	_build_astar()
 	_instantiate_objects()
+
+
+func _build_ambient() -> void:
+	# Ambient darkness is half of the vision-occlusion system. Walls carry light
+	# occluders (baked into the TileSet) and every character carries a
+	# PointLight2D with shadows on, so anything behind a wall genuinely falls
+	# dark instead of being drawn on top of it.
+	var cm := CanvasModulate.new()
+	cm.name = "AmbientDarkness"
+	cm.color = Color(GameConfig.AMBIENT_DARKNESS, GameConfig.AMBIENT_DARKNESS,
+			GameConfig.AMBIENT_DARKNESS + 0.04)
+	add_child(cm)
 
 
 func _build_ground() -> void:
@@ -607,6 +620,7 @@ func _process(delta: float) -> void:
 	_update_phase()
 	_update_camera(delta)
 	_update_local_vision()
+	_update_occlusion()
 
 
 func _update_phase() -> void:
@@ -643,6 +657,31 @@ func _update_camera(delta: float) -> void:
 		camera.global_position = _cam_pos + Vector2(randf_range(-s, s), randf_range(-s, s))
 	else:
 		camera.global_position = camera.global_position.lerp(_cam_pos, clampf(delta * 10.0, 0.0, 1.0))
+
+
+## Fades any enemy that has a wall between them and the local player. This is
+## the gameplay-facing half of line of sight: the AI already refuses to see
+## through walls, and now the player cannot either.
+func _update_occlusion() -> void:
+	if local_actor == null or not (local_actor is CharacterBase):
+		return
+	var viewer := local_actor as CharacterBase
+	var viewer_pos := viewer.global_position
+	for n in get_tree().get_nodes_in_group("character"):
+		var cb := n as CharacterBase
+		if cb == null or not is_instance_valid(cb) or cb == viewer:
+			continue
+		# Teammates always read clearly -- you are meant to keep track of them.
+		if cb.team == viewer.team:
+			cb.set_obscured(false)
+			continue
+		if cb.health == Enums.Health.ESCAPED or cb.health == Enums.Health.DEAD:
+			continue
+		var blocked := viewer.blocked_by_wall(viewer_pos, cb.global_position)
+		# A survivor hiding in a locker is simply not visible.
+		if cb is Survivor and (cb as Survivor).is_hidden():
+			blocked = true
+		cb.set_obscured(blocked)
 
 
 func _update_local_vision() -> void:
@@ -685,7 +724,10 @@ func _debug_log() -> void:
 		# whether vaulting / repair / carry are actually firing.
 		parts.append("%s=%s/%s/h%d" % [sv.char_id, Enums.health_to_string(sv.health),
 				sv.machine.current_name, sv.hook_count])
-	parts.append("vaults=%d/probe=%d/try=%d" % [_vault_counter, SurvivorBrain.probe_hits, SurvivorBrain.vault_attempts])
+	parts.append("vaults=%d/scratch=%d/stain=%s/bloodlust=%d" % [_vault_counter,
+			KillerBrain.scratch_follows,
+			"yes" if (killer != null and killer.red_stain != null) else "NO",
+			killer.bloodlust_tier if killer != null else -1])
 	var kpos := Vector2.ZERO
 	var kstate := "-"
 	if killer != null and is_instance_valid(killer):

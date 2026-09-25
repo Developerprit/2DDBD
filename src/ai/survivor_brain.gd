@@ -81,6 +81,15 @@ func _decide(delta: float) -> void:
 	if killer_dist < GameConfig.TILE * 6.0:
 		danger = true
 
+	# The red stain means "he is looking exactly here". Standing in it is how you
+	# get hit, so it is a danger signal even when he is far away -- and unlike
+	# plain proximity it tells us which way to break out.
+	_stain_evade = false
+	if killer != null and killer.has_method("is_in_red_stain") \
+			and killer.is_in_red_stain(s.global_position):
+		_stain_evade = true
+		danger = true
+
 	if danger:
 		goal_kind = "flee"
 		flee_timer = 4.0
@@ -197,6 +206,19 @@ func _choose_flee_point() -> void:
 	if killer == null:
 		goal = _random_point_near(s.global_position, GameConfig.TILE * 10.0)
 		return
+
+	# Standing in the red stain: running along the beam keeps us in front of him
+	# the whole time. Break perpendicular to it so we leave the cone sideways --
+	# that is the move a real survivor makes.
+	if _stain_evade:
+		var kc := killer as CharacterBase
+		if kc != null:
+			var perp := Vector2(cos(kc.facing_rad + PI * 0.5),
+					sin(kc.facing_rad + PI * 0.5))
+			if perp.dot(s.global_position - kc.global_position) < 0.0:
+				perp = -perp
+			goal = s.global_position + perp * GameConfig.TILE * 12.0
+			return
 	var away: Vector2 = s.global_position - (killer as Node2D).global_position
 	if away.length() < 1.0:
 		away = Vector2.RIGHT
@@ -244,6 +266,9 @@ func _killer() -> Node:
 
 
 var _revive_progress := 0.0
+## Set while we are standing in the killer's red stain, so the flee direction
+## can be chosen to break out of the cone rather than run along it.
+var _stain_evade := false
 
 ## Debug counters. Vaulting is invisible in a headless soak test unless it is
 ## counted, and "cannot vault" was the reported bug.

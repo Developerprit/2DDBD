@@ -83,12 +83,19 @@ func setup_base(p_team: int, sprite_set: String, is_killer_sprite: bool,
 	shape.position = Vector2(0, -2)
 	add_child(shape)
 
+	# Every character carries a light. Combined with the CanvasModulate in the
+	# match controller and the wall occluders baked into the TileSet, this is
+	# what produces real vision occlusion: standing behind a wall puts you in
+	# shadow, and shadows are how a survivor knows someone is around the corner.
 	light = PointLight2D.new()
-	light.texture = _radial(64)
+	light.texture = _radial(128)
 	light.color = Color(1, 0.96, 0.88)
-	light.energy = 0.35 if team == Enums.Team.SURVIVOR else 0.18
-	light.texture_scale = 0.9
+	light.energy = 0.92 if team == Enums.Team.SURVIVOR else 0.62
+	light.texture_scale = 1.7
 	light.position = Vector2(0, -6)
+	light.shadow_enabled = true
+	light.shadow_color = Color(0, 0, 0, 0.55)
+	light.shadow_filter = PointLight2D.SHADOW_FILTER_PCF5
 	add_child(light)
 
 	machine = StateMachine.new()
@@ -309,7 +316,11 @@ func emit_scratch_mark() -> void:
 			+ Vector2(randf_range(-4, 4), randf_range(-3, 3))
 	m.rotation = facing_rad
 	parent.add_child(m)
+	# Grouped + timestamped so the killer AI can ask "what is the freshest trail
+	# within 16 m?" instead of wandering blindly.
+	m.add_to_group("scratch_mark")
 	m.set_meta("scratch", true)
+	m.set_meta("born", Time.get_ticks_msec())
 	var tw := m.create_tween()
 	tw.tween_property(m, "modulate:a", 0.0, GameConfig.SCRATCH_MARK_LIFETIME)
 	tw.tween_callback(m.queue_free)
@@ -346,3 +357,28 @@ func tick_trails(delta: float) -> void:
 
 func get_perk_mods() -> Dictionary:
 	return perk_mods
+
+
+## Dims the sprite when a wall sits between this character and the local player.
+## The tint is carried by `self_modulate` and the transparency by `modulate`, so
+## a stun tint and an occlusion fade can coexist without fighting.
+func set_obscured(obscured: bool) -> void:
+	if sprite == null:
+		return
+	var want := GameConfig.OCCLUDED_ALPHA if obscured else 1.0
+	sprite.modulate.a = lerpf(sprite.modulate.a, want, 0.18)
+
+
+## The direction this character is looking, as a unit vector.
+func facing_vector() -> Vector2:
+	return Vector2(cos(facing_rad), sin(facing_rad))
+
+
+## True when `target` sits inside this character's forward cone (no wall check).
+func is_in_cone(target: Node2D, range_px: float, half_angle: float) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	var to := target.global_position - global_position
+	if to.length() > range_px:
+		return false
+	return absf(Utils.angle_delta(facing_rad, to.angle())) <= half_angle
