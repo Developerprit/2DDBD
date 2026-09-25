@@ -135,11 +135,22 @@ func _register_states() -> void:
 # ---------------------------------------------------------------------------
 func base_speed() -> float:
 	if char_id == "wraith":
+		# The cloak branch used to bypass the carrying / cooldown / bloodlust
+		# modifiers entirely (a cloaked carry sprinted at cloak speed) and it
+		# returned a 4.4 m/s uncloaked pace that was slower than every other
+		# killer. Route through the normal modifiers instead.
+		var s := GameConfig.m(GameConfig.K_RUN)
 		if cloaked:
-			return GameConfig.m(GameConfig.WRAITH_CLOAK_CLOAKED_SPEED)
-		if _uncloak_lock > 0.0:
-			return GameConfig.m(GameConfig.K_RUN) * GameConfig.WRAITH_CLOAK_UNCLOAK_SLOW
-		return GameConfig.m(GameConfig.WRAITH_UNCLOAK_SPEED)
+			s = GameConfig.m(GameConfig.WRAITH_CLOAK_CLOAKED_SPEED)
+		elif _uncloak_lock > 0.0:
+			s *= GameConfig.WRAITH_CLOAK_UNCLOAK_SLOW
+		if is_carrying:
+			s = minf(s, GameConfig.m(GameConfig.K_CARRY))
+		elif attack_cooldown > 0.0:
+			s = minf(s, GameConfig.m(GameConfig.K_COOLDOWN))
+		if bloodlust_tier > 0 and not cloaked:
+			s = maxf(s, GameConfig.m(float(GameConfig.K_BLOODLUST[bloodlust_tier - 1])))
+		return s * speed_mult
 	var s := GameConfig.m(GameConfig.K_RUN)
 	if is_carrying:
 		s = GameConfig.m(GameConfig.K_CARRY)
@@ -193,27 +204,34 @@ func _read_input() -> void:
 		request_attack()
 	if Input.is_action_just_pressed("use_power"):
 		request_power()
-	if Input.is_action_just_pressed("interact") and not is_carrying:
-		_try_traverse()
+	# ONE handler for the interact key. It used to call _try_traverse() AND
+	# _interact_pressed() on the same press -- two vault attempts, two break
+	# attempts, and (while carrying) two hook attempts in a single frame.
 	if Input.is_action_just_pressed("interact"):
 		_interact_pressed()
 
 
+## The single interact-key entry point. Carrying -> hook the victim; otherwise
+## pick up / vault / break / kick, guarded by the move state so a press during
+## an attack or a stun can never force-queue an interaction.
 func _interact_pressed() -> void:
 	if is_carrying:
 		hook_carried()
+		return
+	if machine.current_name != "move":
 		return
 	# Standing over a downed survivor picks them up; otherwise vault a window
 	# or break a pallet in front of the killer.
 	if try_pickup():
 		return
-	var w := _nearest_vaultable_window()
+	var w := _nearest_window()
 	if w != null:
-		if machine.has_state("vault"):
-			machine.force("vault", {"target": w, "time": w.vault_time(self)})
+		machine.force("vault", {"target": w, "time": w.vault_time(self),
+				"end": w.landing_point(global_position)})
 		return
 	var p := nearest_breakable_pallet()
 	if p != null and machine.has_state("break_pallet"):
+		_uncloak_for_interaction()
 		machine.force("break_pallet", {"target": p})
 		return
 	# Damaging a generator: the killer's only way to take progress back off the
@@ -221,7 +239,15 @@ func _interact_pressed() -> void:
 	# finished it.
 	var g := nearest_kickable_generator()
 	if g != null and machine.has_state("damage_gen"):
+		_uncloak_for_interaction()
 		machine.force("damage_gen", {"target": g})
+
+
+## Handling a body, smashing a board or kicking a machine cannot be done from
+## the phase world -- the cloak rips away first.
+func _uncloak_for_interaction() -> void:
+	if cloaked:
+		toggle_cloak()
 
 
 func nearest_kickable_generator() -> Generator:
@@ -436,28 +462,6 @@ func _set_bloodlust(t: int) -> void:
 # ---------------------------------------------------------------------------
 # Attack
 # ---------------------------------------------------------------------------
-## Interact key while not carrying someone: vault a window, hop a standing
-## pallet, or start breaking a dropped one.
-func _try_traverse() -> void:
-	if machine.current_name != "move":
-		return
-	var w := _nearest_window()
-	if w != null:
-		end_carry_anim()
-		machine.force("vault", {"target": w, "time": w.vault_time(self),
-				"end": w.landing_point(global_position)})
-		return
-	# Upright pallets are deliberately ignored: they are not in the way, so there is
-	# nothing to vault. Only a board lying across the gap has to be broken.
-	var dropped := nearest_breakable_pallet()
-	if dropped != null:
-		machine.force("break_pallet", {"target": dropped})
-
-
-func end_carry_anim() -> void:
-	pass
-
-
 func _nearest_window() -> WindowVault:
 	var best: WindowVault = null
 	var best_d := GameConfig.TILE * 1.9
@@ -503,7 +507,10 @@ func lunge_request() -> bool:
 	return false
 
 
-func perform_attack(is_lunge := false) -> void:
+## Returns true when the swing connected. The caller (AttackState) uses it to
+## decide whether the blade-wipe recovery plays: the original only wipes the
+## weapon after a hit -- a whiff is a short cooldown with no wipe at all.
+func perform_attack(is_lunge := false) -> bool:
 	_attack_hit_done = false
 	var cfg: Dictionary = GameConfig.killers.get(char_id, {})
 	var atk: Dictionary = cfg.get("attack", {})
@@ -531,13 +538,13 @@ func perform_attack(is_lunge := false) -> void:
 		hits.append(sv)
 
 	if hits.is_empty():
-		# Whiff: shorter cooldown, and Unrelenting shaves it further.
+		# Whiff: shorter cooldown, and Unrelenting shaves it further. No wipe.
 		var cd := GameConfig.K_ATTACK_COOLDOWN_TIME * 0.75
 		if perk_mods.has("miss_recover"):
 			cd *= float(perk_mods["miss_recover"])
 		attack_cooldown = cd
 		SaveData.add_bloodpoints("sacrifice", 0)
-		return
+		return false
 
 	hits.sort_custom(func(a, b):
 		return global_position.distance_to(a.global_position) < global_position.distance_to(b.global_position))
@@ -553,6 +560,7 @@ func perform_attack(is_lunge := false) -> void:
 	_bloodlust_decay = 0.0
 	chase_accum = 0.0
 	_set_bloodlust(0)
+	return true
 
 
 func on_hit_landed(_victim: Node) -> void:
@@ -592,6 +600,8 @@ func try_pickup() -> bool:
 	var target := _find_pickup_target()
 	if target == null:
 		return false
+	# Grabbing a body materialises him: no lifting survivors from the phase world.
+	_uncloak_for_interaction()
 	start_carry(target)
 	return true
 
@@ -675,11 +685,17 @@ func nearest_free_hook() -> Hook:
 	return best
 
 
+## Hook the carried survivor. Only works standing next to a free post: the
+## nearest-free-hook search reaches across 48 tiles (that is how the AI finds
+## somewhere to walk to), and without this gate a press of the interact key
+## strung the victim up on a hook clear across the realm.
 func hook_carried() -> bool:
 	if carried == null:
 		return false
 	var h := nearest_free_hook()
 	if h == null:
+		return false
+	if global_position.distance_to(h.global_position) > GameConfig.TILE * 2.0:
 		return false
 	current_hook_target = h
 	if machine.has_state("hooking"):
@@ -924,6 +940,11 @@ class AttackState:
 	var _timer := 0.0
 	var _windup := 0.35
 	var _hit_delay := 0.15
+	## Blade-wipe (擦刀) only follows a hit. A whiff goes straight back to the
+	## chase -- the cooldown still applies through attack_cooldown, but the killer
+	## is not locked in a wipe animation for a swing that touched nothing.
+	var _wipe := 0.55
+	var _connected := false
 
 	func enter(_msg: Dictionary = {}) -> void:
 		var k := actor as Killer
@@ -938,6 +959,7 @@ class AttackState:
 		_hit_delay = float(atk.get("weapon_hit_delay", 0.15))
 		_phase = 0
 		_timer = 0.0
+		_connected = false
 		k.move_input = Vector2.ZERO
 		k.play_anim("attack_%s" % Utils.facing_suffix(k.facing), true)
 		EventBus.killer_attack.emit(true)
@@ -962,13 +984,14 @@ class AttackState:
 				if _timer >= _windup:
 					_phase = 1
 					_timer = 0.0
-					k.perform_attack(false)
+					_connected = k.perform_attack(false)
 			1:
 				if _timer >= _hit_delay:
 					_phase = 2
 					_timer = 0.0
 			2:
-				if _timer >= 0.55:
+				# A connected swing wipes the blade (0.55s). A whiff barely pauses.
+				if _timer >= (_wipe if _connected else 0.08):
 					machine.change("move")
 
 
@@ -992,11 +1015,11 @@ class CarryState:
 		var k := actor as Killer
 		if k.is_ai:
 			return
-		# Drop with the power key, hook with the action key.
+		# Drop with the power key. The interact press (hook) is handled once, in
+		# Killer._interact_pressed() -- handling it here as well hooked the same
+		# victim twice in one frame.
 		if Input.is_action_just_pressed("use_power"):
 			k.drop_carried()
-		elif Input.is_action_just_pressed("interact"):
-			k.hook_carried()
 
 
 class HookingState:

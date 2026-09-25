@@ -36,8 +36,11 @@ const K_WINDOW_VAULT_TIME := 1.5
 const K_PALLET_BREAK_TIME := 2.6
 const K_ATTACK_WINDUP := 0.35
 const K_ATTACK_COOLDOWN_TIME := 3.0
-const K_ATTACK_RANGE := 2.2
-const K_ATTACK_ARC_DEG := 90.0
+## 2.9 m to the survivor's centre. Measured against the 4.5 px survivor hitbox,
+## 2.2 m made every swing fall visibly short -- "attack range is impossible to
+## land" -- so it sits just above a vault-width gap now.
+const K_ATTACK_RANGE := 2.9
+const K_ATTACK_ARC_DEG := 130.0
 const K_HITBOX_RADIUS := 5.5
 
 # ---------------------------------------------------------------------------
@@ -165,12 +168,14 @@ const TRAP_INJURE_ON_ESCAPE := true
 ## Cloaked the killer leaves no red stain and makes no heartbeat, and moves a
 ## touch faster. Uncloaking takes a moment of vulnerability (slower + visible)
 ## before he is back to full pace. He cannot attack while cloaked.
-const WRAITH_CLOAK_CLOAKED_SPEED := 4.6   ## m/s while invisible
-const WRAITH_UNCLOAK_SPEED := 4.4         ## m/s once fully materialised
+const WRAITH_CLOAK_CLOAKED_SPEED := 6.0   ## m/s while invisible -- the cloak IS his speed boost
+const WRAITH_UNCLOAK_SPEED := 4.6         ## m/s once fully materialised (base killer pace)
 const WRAITH_CLOAK_UNCLOAK_SLOW := 0.86   ## speed multiplier during the materialise lock
 const WRAITH_CLOAK_UNCLOAK_LOCK := 1.5   ## seconds of slow + visible after uncloaking
 const WRAITH_CLOAK_TOGGLE_CD := 0.3       ## min seconds between cloak toggles (anti-flicker)
-const WRAITH_CLOAK_ALPHA := 0.45          ## sprite transparency while cloaked
+## 0.45 left him plainly visible -- "the invisibility is bugged". A cloaked
+## Wraith is a faint shimmer: almost nothing, but never quite zero.
+const WRAITH_CLOAK_ALPHA := 0.14
 
 # ---------------------------------------------------------------------------
 # Scoring (bloodpoints)

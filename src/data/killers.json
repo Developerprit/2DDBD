@@ -11,8 +11,8 @@
     "attack": {
       "windup": 0.35,
       "cooldown": 3.0,
-      "range": 2.2,
-      "arc_deg": 90.0,
+      "range": 2.9,
+      "arc_deg": 130.0,
       "weapon_hit_delay": 0.15
     },
     "lunge": {
@@ -37,12 +37,91 @@
       "cooldown_mult": 0.6
     },
     "addons": [
-      {"id": "trapper_sack", "name": {"en": "Trapper Sack", "zh": "夹子布袋"}, "desc": {"en": "+2 carryable traps. Cannot pick up placed traps.", "zh": "可携带夹子 +2，但无法捡回已放置的夹子。"}, "mods": {"max_traps": 2, "no_pickup": 1}},
-      {"id": "tar_bottle", "name": {"en": "Tar Bottle", "zh": "焦油瓶"}, "desc": {"en": "Traps are darker and much harder to spot.", "zh": "夹子颜色更深，更难被发现。"}, "mods": {"stealth": 1}},
-      {"id": "honed_stone", "name": {"en": "Honed Stone", "zh": "磨石"}, "desc": {"en": "Survivors take longer to free themselves.", "zh": "逃生者挣脱夹子所需时间更长。"}, "mods": {"escape_slow": 0.35}},
-      {"id": "rusted_chain", "name": {"en": "Rusted Chain", "zh": "锈链"}, "desc": {"en": "Freeing yourself always injures you.", "zh": "挣脱夹子后必定受伤。"}, "mods": {"always_injure": 1}},
-      {"id": "bloody_coil", "name": {"en": "Bloody Coil", "zh": "血腥线圈"}, "desc": {"en": "Traps never spawn far from generators.", "zh": "夹子总是生成在发电机附近。"}, "mods": {"bias_generator": 1}},
-      {"id": "fastening_tools", "name": {"en": "Fastening Tools", "zh": "固定工具"}, "desc": {"en": "Place traps 40% faster.", "zh": "放置夹子速度提升 40%。"}, "mods": {"place_speed": 0.4}}
+      {
+        "id": "trapper_sack",
+        "name": {
+          "en": "Trapper Sack",
+          "zh": "夹子布袋"
+        },
+        "desc": {
+          "en": "+2 carryable traps. Cannot pick up placed traps.",
+          "zh": "可携带夹子 +2，但无法捡回已放置的夹子。"
+        },
+        "mods": {
+          "max_traps": 2,
+          "no_pickup": 1
+        }
+      },
+      {
+        "id": "tar_bottle",
+        "name": {
+          "en": "Tar Bottle",
+          "zh": "焦油瓶"
+        },
+        "desc": {
+          "en": "Traps are darker and much harder to spot.",
+          "zh": "夹子颜色更深，更难被发现。"
+        },
+        "mods": {
+          "stealth": 1
+        }
+      },
+      {
+        "id": "honed_stone",
+        "name": {
+          "en": "Honed Stone",
+          "zh": "磨石"
+        },
+        "desc": {
+          "en": "Survivors take longer to free themselves.",
+          "zh": "逃生者挣脱夹子所需时间更长。"
+        },
+        "mods": {
+          "escape_slow": 0.35
+        }
+      },
+      {
+        "id": "rusted_chain",
+        "name": {
+          "en": "Rusted Chain",
+          "zh": "锈链"
+        },
+        "desc": {
+          "en": "Freeing yourself always injures you.",
+          "zh": "挣脱夹子后必定受伤。"
+        },
+        "mods": {
+          "always_injure": 1
+        }
+      },
+      {
+        "id": "bloody_coil",
+        "name": {
+          "en": "Bloody Coil",
+          "zh": "血腥线圈"
+        },
+        "desc": {
+          "en": "Traps never spawn far from generators.",
+          "zh": "夹子总是生成在发电机附近。"
+        },
+        "mods": {
+          "bias_generator": 1
+        }
+      },
+      {
+        "id": "fastening_tools",
+        "name": {
+          "en": "Fastening Tools",
+          "zh": "固定工具"
+        },
+        "desc": {
+          "en": "Place traps 40% faster.",
+          "zh": "放置夹子速度提升 40%。"
+        },
+        "mods": {
+          "place_speed": 0.4
+        }
+      }
     ]
   },
   "wraith": {
@@ -57,8 +136,8 @@
     "attack": {
       "windup": 0.35,
       "cooldown": 3.0,
-      "range": 2.2,
-      "arc_deg": 90.0,
+      "range": 2.9,
+      "arc_deg": 130.0,
       "weapon_hit_delay": 0.15
     },
     "lunge": {
@@ -71,11 +150,11 @@
       "id": "bell",
       "name_key": "power.bell",
       "desc_key": "power.bell.desc",
-      "cloak_speed": 4.6,
-      "uncloak_speed": 4.4,
+      "cloak_speed": 6.0,
+      "uncloak_speed": 4.6,
       "uncloak_lock": 1.5,
       "uncloak_slow": 0.86,
-      "cloak_alpha": 0.45,
+      "cloak_alpha": 0.14,
       "toggle_cd": 0.3
     },
     "addons": []

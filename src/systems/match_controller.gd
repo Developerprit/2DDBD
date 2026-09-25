@@ -115,12 +115,16 @@ func _begin() -> void:
 				_test_kick = true
 			"--test-instinct":
 				_test_instinct = true
+			"--test-release":
+				_test_release = true
 			"--no-random-char":
 				_no_random_chars = true
 	var uargs := OS.get_cmdline_user_args()
 	for i in uargs.size():
 		if uargs[i] == "--map" and i + 1 < uargs.size():
 			map_id = uargs[i + 1]
+		if uargs[i] == "--seed" and i + 1 < uargs.size():
+			seed_value = int(uargs[i + 1])
 		if uargs[i] == "--killer" and i + 1 < uargs.size():
 			GameConfig.selected_killer = uargs[i + 1]
 		if uargs[i] == "--survivor" and i + 1 < uargs.size():
@@ -149,6 +153,9 @@ func _begin() -> void:
 		return
 	if _test_instinct:
 		_run_instinct_test()
+		return
+	if _test_release:
+		_run_release_test()
 		return
 	_setup_camera()
 	AudioDirector.start_ambient()
@@ -319,7 +326,11 @@ func _build_astar() -> void:
 	astar = AStarGrid2D.new()
 	astar.region = Rect2i(0, 0, map_size, map_size)
 	astar.cell_size = Vector2i(GameConfig.TILE, GameConfig.TILE)
-	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_AT_LEAST_ONE_WALKABLE
+	# ONLY_IF_NO_OBSTACLES: a diagonal step is only allowed when BOTH orthogonal
+	# neighbours are walkable. AT_LEAST_ONE_WALKABLE let paths cut across wall
+	# corners, and a body with a 4.5-5.5 px radius wedged on that corner every
+	# time -- the "bots grind into walls" report.
+	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
 	astar.default_compute_heuristic = AStarGrid2D.HEURISTIC_OCTILE
 	astar.default_estimate_heuristic = AStarGrid2D.HEURISTIC_OCTILE
 	astar.update()
@@ -684,6 +695,7 @@ var _test_vault := false
 var _test_pallet := false
 var _test_kick := false
 var _test_instinct := false
+var _test_release := false
 var _no_random_chars := false
 var _vault_counter := 0
 var _web_checked := false
@@ -1071,6 +1083,65 @@ func _run_instinct_test() -> void:
 	get_tree().quit()
 
 
+## The "bot never lets go of the generator" bug, as an assertion.
+##
+## A bot is parked on a generator and left to commit to the repair; the killer is
+## then teleported on top of it. The bot must leave the interact state within a
+## second. This is invisible from a screenshot and was reported twice -- the first
+## fix (release-on-goal-change) was unreachable because think() bailed out before
+## the danger check while inside `interact`.
+func _run_release_test() -> void:
+	var bot: Survivor = null
+	for s in survivors:
+		if is_instance_valid(s) and (s as Survivor).is_ai \
+				and (s as Survivor).health == Enums.Health.HEALTHY:
+			bot = s
+			break
+	var gen: Generator = null
+	for n in get_tree().get_nodes_in_group("interactable"):
+		var g := n as Generator
+		if g != null and not g.completed:
+			gen = g
+			break
+	if bot == null or gen == null or killer == null:
+		print("[release-test] missing bot / generator / killer  FAIL")
+		get_tree().quit()
+		return
+
+	# Park the bot on the machine, the killer as far away as the realm allows.
+	var bot_home := gen.global_position + Vector2(GameConfig.TILE, 0)
+	bot.global_position = bot_home
+	bot.velocity = Vector2.ZERO
+	killer.global_position = Vector2(GameConfig.TILE * 4.0, GameConfig.TILE * 4.0)
+
+	var frames := 0
+	while frames < 360:
+		await get_tree().physics_frame
+		frames += 1
+		if bot.machine.current_name == "interact":
+			break
+	if bot.machine.current_name != "interact":
+		print("[release-test] bot never started repairing (state=%s)  FAIL"
+				% bot.machine.current_name)
+		get_tree().quit()
+		return
+	print("[release-test] bot repairing after %.1fs" % (float(frames) / 60.0))
+
+	# Killer on top of the bot. The danger check has to interrupt the repair.
+	killer.global_position = bot.global_position + Vector2(GameConfig.TILE * 1.2, 0)
+	frames = 0
+	while frames < 120:
+		await get_tree().physics_frame
+		frames += 1
+		if bot.machine.current_name != "interact":
+			break
+	var released: bool = bot.machine.current_name != "interact"
+	print("[release-test] killer adjacent -> bot state=%s after %.2fs  %s"
+			% [bot.machine.current_name, float(frames) / 60.0,
+			"PASS" if released else "FAIL"])
+	get_tree().quit()
+
+
 func _dump_map_now() -> void:
 	var dir := "user://"
 	MapDump.report(map_data, self)
@@ -1078,6 +1149,8 @@ func _dump_map_now() -> void:
 	if out == "":
 		out = "res://build"
 	DirAccess.make_dir_recursive_absolute(out)
+	# Render the *current* (requested) seed too, for debugging seed-specific bugs.
+	MapDump.render(map_data, self, "%s/debug_%s_%d.png" % [out, map_id, int(GameConfig.get_meta("pending_seed", 0))])
 	for i in 6:
 		var s := (i * 7919) + 13
 		var md := MapGenerator.generate(s, map_id)

@@ -33,6 +33,15 @@ var _toasts: Array = []
 var _map_visible := false
 var _last_prompt := ""
 
+# --- heartbeat indicator ---------------------------------------------------
+## Terror-radius heartbeat, bottom-left. The killer emits `terror_level` every
+## frame (0 = out of radius, 1 = right on top of you); the indicator pulses at
+## a rate and opacity driven by that level. Hidden for the killer's own view.
+var heart_box: Control
+var heart_label: Label
+var _terror := 0.0
+var _heart_phase := 0.0
+
 # --- pause overlay ---------------------------------------------------------
 var pause_root: Control
 var paused := false
@@ -49,6 +58,7 @@ func _ready() -> void:
 	EventBus.toast.connect(_on_toast)
 	EventBus.settings_changed.connect(_rebuild_theme)
 	EventBus.killer_broke.connect(_on_killer_broke)
+	EventBus.terror_level.connect(_on_terror_level)
 	await get_tree().process_frame
 	mc = MatchController.instance
 
@@ -72,6 +82,7 @@ func _build() -> void:
 	_build_bottom_center()
 	_build_dial()
 	_build_killer_panel()
+	_build_heartbeat()
 	_build_toasts()
 	_build_map_overlay()
 	_build_pause_overlay()
@@ -201,6 +212,41 @@ func _build_killer_panel() -> void:
 	item_label.add_theme_font_size_override("font_size", 10)
 	item_label.add_theme_color_override("font_color", UITheme.color("text_dim"))
 	v.add_child(item_label)
+
+
+## Terror-radius heartbeat, bottom-left. Survivors only: the killer always hears
+## his own heartbeat, so showing it to him would be noise. Sits above the killer
+## power panel's anchor so the two never overlap.
+func _build_heartbeat() -> void:
+	heart_box = Control.new()
+	heart_box.name = "Heartbeat"
+	heart_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	heart_box.position = Vector2(8, -116)
+	heart_box.custom_minimum_size = Vector2(170, 44)
+	heart_box.size = Vector2(170, 44)
+	heart_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	heart_box.visible = false
+	heart_box.draw.connect(_draw_heartbeat)
+	root.add_child(heart_box)
+
+	heart_label = Label.new()
+	heart_label.position = Vector2(32, 13)
+	heart_label.add_theme_font_size_override("font_size", 11)
+	heart_box.add_child(heart_label)
+
+
+func _draw_heartbeat() -> void:
+	if _terror <= 0.0:
+		return
+	# Pulse: a quick systole followed by a softer echo, rate driven by proximity.
+	var beat := fmod(_heart_phase, 1.0)
+	var pulse := pow(maxf(0.0, 1.0 - beat * 2.2), 2.0) \
+			+ 0.45 * pow(maxf(0.0, 1.0 - absf(beat - 0.32) * 4.0), 2.0)
+	var a := clampf(_terror * 1.5, 0.0, 1.0)
+	var c := Color(0.88, 0.16, 0.14, (0.30 + 0.55 * pulse) * a)
+	var c2 := Color(c.r, c.g, c.b, c.a * 0.30)
+	heart_box.draw_circle(Vector2(15, 21), 5.5 + 3.0 * pulse, c)
+	heart_box.draw_circle(Vector2(15, 21), 10.5 + 4.0 * pulse, c2)
 
 
 ## Objective pointers, killer only. Added first so it sits *under* the HUD panels:
@@ -340,6 +386,7 @@ func _process(delta: float) -> void:
 	_sync_prompt()
 	_sync_dial()
 	_sync_killer_panel()
+	_sync_heartbeat(delta)
 	_sync_map()
 	if fps_label != null and GameConfig.show_fps:
 		fps_label.text = "%d fps" % int(Engine.get_frames_per_second())
@@ -566,6 +613,31 @@ func _sync_map() -> void:
 		map_overlay.queue_redraw()
 	if _map_visible:
 		map_overlay.queue_redraw()
+
+
+## Terror level arrives from the killer every physics frame. Only survivors get
+## the indicator: to the killer his own heartbeat is meaningless noise.
+func _on_terror_level(level: float) -> void:
+	_terror = clampf(level, 0.0, 1.0)
+
+
+func _sync_heartbeat(delta: float) -> void:
+	if heart_box == null:
+		return
+	var show := mc != null and mc.player_role == Enums.Team.SURVIVOR and _terror > 0.01
+	if heart_box.visible != show:
+		heart_box.visible = show
+	if not show:
+		return
+	# Cloak of the Wraith already drives terror to 0, so a hidden heart here is
+	# automatic. Rate and opacity climb as he closes in.
+	_heart_phase = fmod(_heart_phase + delta * (0.9 + _terror * 2.4), 1.0)
+	var d := (1.0 - _terror) * GameConfig.TERROR_RADIUS / GameConfig.TILE
+	heart_label.text = "%s  %d%s" % [Locale.t("hud.heartbeat"), int(round(d)),
+			Locale.t("unit.meters")]
+	heart_label.add_theme_color_override("font_color",
+			Color(0.95, 0.45, 0.40, 0.45 + 0.55 * _terror))
+	heart_box.queue_redraw()
 
 
 # ---------------------------------------------------------------------------

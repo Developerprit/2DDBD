@@ -69,11 +69,58 @@ func think(delta: float) -> void:
 			s.move_input = Vector2.ZERO
 			return
 
+	# The danger check has to run even while we are mid-interaction. This is the
+	# second half of the "bot never lets go of the generator" bug: the first fix
+	# made _set_goal() release the interaction, but think() bailed out before the
+	# danger check whenever the machine was inside `interact` -- so the release
+	# code was unreachable exactly when it mattered. A killer walking up on a
+	# repairing bot must interrupt the repair.
+	var info := _killer_danger()
+	if info["danger"]:
+		_set_goal("flee")
+		flee_timer = 4.0
+		_maybe_drop_pallet(info["dist"])
+		_choose_flee_point()
+		_follow_path(delta)
+		return
+
 	if s.machine.current_name != "move":
 		return
 
 	_decide(delta)
 	_follow_path(delta)
+
+
+## Killer proximity / line-of-sight evaluation, shared by the interrupt path
+## above and the normal decision pass.
+func _killer_danger() -> Dictionary:
+	var killer := _killer()
+	var killer_dist := 1e9
+	if killer != null:
+		killer_dist = s.global_position.distance_to(killer.global_position)
+
+	var danger := killer_dist < GameConfig.TILE * 9.0
+	if killer != null and killer.has_method("is_looking_at") and killer.is_looking_at(s):
+		danger = true
+	if killer_dist < GameConfig.TILE * 6.0:
+		danger = true
+
+	# The red stain means "he is looking exactly here". Standing in it is how you
+	# get hit, so it is a danger signal even when he is far away -- and unlike
+	# plain proximity it tells us which way to break out.
+	_stain_evade = false
+	if killer != null:
+		var in_stain: bool = killer.has_method("is_in_red_stain") \
+				and killer.is_in_red_stain(s.global_position)
+		# Being *looked at* from further out carries the same information as the
+		# stain -- he is committed in this direction -- so it earns the same
+		# sideways escape.
+		var watched: bool = killer.has_method("is_looking_at") \
+				and killer.is_looking_at(s) and killer_dist < GameConfig.TILE * 10.0
+		if in_stain or watched:
+			_stain_evade = true
+			danger = true
+	return {"danger": danger, "dist": killer_dist}
 
 
 # ---------------------------------------------------------------------------
@@ -104,45 +151,13 @@ func _release_interaction() -> void:
 
 
 func _decide(delta: float) -> void:
+	# Danger is handled in think() before this runs, so this pass only ever sees
+	# a calm killer. `killer_dist` is still needed here: healing next to where he
+	# was last seen is how bots die.
 	var killer := _killer()
 	var killer_dist := 1e9
 	if killer != null:
 		killer_dist = s.global_position.distance_to(killer.global_position)
-
-	# Panic only when the killer is genuinely close, or when he can actually see
-	# us. Fleeing the entire terror radius left the bots unable to repair
-	# anything, which made every trial unwinnable.
-	var danger := killer_dist < GameConfig.TILE * 9.0
-	if killer != null and killer.has_method("is_looking_at") and killer.is_looking_at(s):
-		danger = true
-	if killer_dist < GameConfig.TILE * 6.0:
-		danger = true
-
-	# The red stain means "he is looking exactly here". Standing in it is how you
-	# get hit, so it is a danger signal even when he is far away -- and unlike
-	# plain proximity it tells us which way to break out.
-	_stain_evade = false
-	if killer != null:
-		var in_stain: bool = killer.has_method("is_in_red_stain") \
-				and killer.is_in_red_stain(s.global_position)
-		# Being *looked at* from further out carries the same information as the
-		# stain -- he is committed in this direction -- so it earns the same
-		# sideways escape.
-		var watched: bool = killer.has_method("is_looking_at") \
-				and killer.is_looking_at(s) and killer_dist < GameConfig.TILE * 10.0
-		if in_stain or watched:
-			_stain_evade = true
-			danger = true
-
-	if danger:
-		_set_goal("flee")
-		flee_timer = 4.0
-		# Spend a pallet when he is actually on us. Slamming a board down is the single
-		# most effective thing a survivor can do in a chase, and the bots never did it
-		# at all -- they would run straight past a ready pallet and be caught in the open.
-		_maybe_drop_pallet(killer_dist)
-		_choose_flee_point()
-		return
 
 	if flee_timer > 0.0:
 		flee_timer -= delta

@@ -776,40 +776,55 @@ static func _rect(g: PackedByteArray, n: int, x0: int, y0: int, w: int, h: int, 
 
 static func _seal_unreachable(g: PackedByteArray, n: int) -> void:
 	## Any pocket the survivors cannot walk to becomes solid so nothing gets stuck.
+	##
+	## The keep-set is the LARGEST connected floor region, not "the first floor tile
+	## scanning row-major". Starting from the first tile used to land inside a stray
+	## pocket behind a building on some seeds, the flood never reached the main area,
+	## and the seal pass entombed the entire realm in walls (measured: 79.7% open
+	## before the seal, 0.1% after).
 	var seen := PackedByteArray()
 	seen.resize(n * n)
 	seen.fill(0)
-	var start := Vector2i(-1, -1)
-	for y in range(2, n - 2):
-		for x in range(2, n - 2):
-			if at(g, n, x, y) == F_FLOOR:
-				start = Vector2i(x, y)
-				break
-		if start.x >= 0:
-			break
-	if start.x < 0:
-		return
-
-	var queue: Array[Vector2i] = [start]
-	seen[start.y * n + start.x] = 1
-	while not queue.is_empty():
-		var c: Vector2i = queue.pop_back()
-		for d in Utils.DIRS4:
-			var nx := c.x + int(d.x)
-			var ny := c.y + int(d.y)
-			if nx < 0 or ny < 0 or nx >= n or ny >= n:
-				continue
-			if seen[ny * n + nx] == 1:
-				continue
-			if at(g, n, nx, ny) == F_WALL:
-				continue
-			seen[ny * n + nx] = 1
-			queue.append(Vector2i(nx, ny))
-
+	var best: Array[Vector2i] = []     ## cells of the largest region found so far
+	var queue: Array[Vector2i] = []
+	var cur: Array[Vector2i] = []
 	for y in n:
 		for x in n:
-			if at(g, n, x, y) == F_FLOOR and seen[y * n + x] == 0:
-				set_at(g, n, x, y, F_WALL)
+			var idx := y * n + x
+			if g[idx] != F_FLOOR or seen[idx] == 1:
+				continue
+			# Flood this whole pocket, remembering its cells.
+			cur.clear()
+			queue.clear()
+			queue.append(Vector2i(x, y))
+			seen[idx] = 1
+			while not queue.is_empty():
+				var c: Vector2i = queue.pop_back()
+				cur.append(c)
+				for d in Utils.DIRS4:
+					var nx := c.x + int(d.x)
+					var ny := c.y + int(d.y)
+					if nx < 0 or ny < 0 or nx >= n or ny >= n:
+						continue
+					var nidx := ny * n + nx
+					if seen[nidx] == 1 or g[nidx] != F_FLOOR:
+						continue
+					seen[nidx] = 1
+					queue.append(Vector2i(nx, ny))
+			if cur.size() > best.size():
+				best = cur.duplicate()
+
+	# Everything outside the largest walkable region is entombed.
+	var keep := PackedByteArray()
+	keep.resize(n * n)
+	keep.fill(0)
+	for c in best:
+		keep[c.y * n + c.x] = 1
+	for y in n:
+		for x in n:
+			var idx := y * n + x
+			if g[idx] == F_FLOOR and keep[idx] == 0:
+				g[idx] = F_WALL
 
 
 # ---------------------------------------------------------------------------

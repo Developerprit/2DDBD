@@ -46,7 +46,9 @@ static var loop_cuts := 0
 static var last_mode := 0
 
 const REPATH_INTERVAL := 0.7
-const ATTACK_RANGE := 2.0 * 16.0
+## Swing trigger distance. Sits just inside the attack's own reach (2.9 m) so the
+## windup cannot be walked out of before the hit frame.
+const ATTACK_RANGE := 2.6 * 16.0
 
 
 func _init(killer: Killer) -> void:
@@ -300,6 +302,11 @@ func _mode_search(delta: float) -> void:
 ## effectively finished it.
 func _try_kick() -> bool:
 	if k.is_carrying or k.machine.current_name != "move":
+		return false
+	# A cloaked Wraith cannot interact with the world; uncloaking here would just
+	# fight the brain's own "cloak while roaming" rule, so the kick simply waits
+	# until the next uncloaked window.
+	if k.char_id == "wraith" and k.is_cloaked():
 		return false
 	if not k.machine.has_state("damage_gen"):
 		return false

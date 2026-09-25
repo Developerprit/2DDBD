@@ -78,6 +78,8 @@ const STRINGS := {
 	"hud.hatch_open": {"en": "The hatch has opened", "zh": "地窖已开启"},
 	"hud.power": {"en": "Power", "zh": "力量"},
 	"hud.bloodlust": {"en": "Bloodlust", "zh": "杀戮欲望"},
+	"hud.heartbeat": {"en": "HEARTBEAT", "zh": "心跳"},
+	"unit.meters": {"en": "m", "zh": "米"},
 	"hud.item": {"en": "Item", "zh": "道具"},
 
 	# --- interactions --------------------------------------------------
