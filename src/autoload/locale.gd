@@ -227,11 +227,12 @@ const STRINGS := {
 	},
 	"power.bell": {"en": "Wailing Bell", "zh": "哀嚎之铃"},
 	"power.bell.desc": {
-		"en": "Cloak and uncloak at will. While cloaked you leave no red stain, make no heartbeat and move slightly faster -- but you cannot attack.",
-		"zh": "随意隐身与显形。隐身时不会留下红光、没有心跳，且移动略快——但无法攻击。",
+		"en": "Ring the bell to cloak (2.5s) or uncloak (3s). While cloaked you are invisible beyond 20m, a faint shimmer within, leave no red stain and make no heartbeat, and move at 5.0m/s -- but you cannot attack. Uncloaking grants a 1s burst of 150% speed.",
+		"zh": "敲响哀嚎之铃以隐身（2.5秒）或显形（3秒）。隐身时：20米外完全不可见、20米内仅半透明微光，不留下红光、没有心跳，且以5.0米/秒移动——但无法攻击。显形后获得1秒150%移速爆发。",
 	},
 	"power.bell.cloaked": {"en": "Cloaked", "zh": "隐身"},
 	"power.bell.uncloaked": {"en": "Uncloaked", "zh": "显形"},
+	"power.bell.ringing": {"en": "Ringing…", "zh": "敲钟中…"},
 }
 
 

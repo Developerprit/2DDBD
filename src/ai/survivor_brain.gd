@@ -99,17 +99,28 @@ func _killer_danger() -> Dictionary:
 	if killer != null:
 		killer_dist = s.global_position.distance_to(killer.global_position)
 
-	var danger := killer_dist < GameConfig.TILE * 9.0
-	if killer != null and killer.has_method("is_looking_at") and killer.is_looking_at(s):
-		danger = true
-	if killer_dist < GameConfig.TILE * 6.0:
-		danger = true
+	var danger := false
+	var stealth := false
+	# A cloaked Wraith is invisible beyond 20 m and only a faint shimmer within.
+	# Ignore him completely until he is close enough to actually be perceived --
+	# this is what makes his approach unseen.
+	if killer != null and killer.has_method("is_cloaked") and killer.is_cloaked() \
+			and killer.char_id == "wraith":
+		stealth = true
+		danger = killer_dist < GameConfig.WRAITH_CLOAK_VIS_RANGE * GameConfig.TILE
+	else:
+		danger = killer_dist < GameConfig.TILE * 9.0
+		if killer != null and killer.has_method("is_looking_at") and killer.is_looking_at(s):
+			danger = true
+		if killer_dist < GameConfig.TILE * 6.0:
+			danger = true
 
 	# The red stain means "he is looking exactly here". Standing in it is how you
 	# get hit, so it is a danger signal even when he is far away -- and unlike
-	# plain proximity it tells us which way to break out.
+	# plain proximity it tells us which way to break out. A cloaked Wraith casts
+	# no stain, so this branch is skipped while he is stealthed.
 	_stain_evade = false
-	if killer != null:
+	if not stealth and killer != null:
 		var in_stain: bool = killer.has_method("is_in_red_stain") \
 				and killer.is_in_red_stain(s.global_position)
 		# Being *looked at* from further out carries the same information as the

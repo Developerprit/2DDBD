@@ -25,6 +25,7 @@ var _alert_reveal_until := 0
 var item_label: Label
 var toast_box: VBoxContainer
 var bloodlust_bar: ProgressBar
+var bell_bar: ProgressBar
 var map_overlay: Control
 var fps_label: Label
 var objective_hint: Label
@@ -207,6 +208,14 @@ func _build_killer_panel() -> void:
 	bloodlust_bar.show_percentage = false
 	bloodlust_bar.max_value = 3
 	v.add_child(bloodlust_bar)
+
+	## Wraith bell channel (cloak / uncloak). Hidden unless the bell is ringing.
+	bell_bar = ProgressBar.new()
+	bell_bar.custom_minimum_size = Vector2(140, 5)
+	bell_bar.show_percentage = false
+	bell_bar.max_value = 1.0
+	bell_bar.visible = false
+	v.add_child(bell_bar)
 
 	item_label = Label.new()
 	item_label.add_theme_font_size_override("font_size", 10)
@@ -587,10 +596,19 @@ func _sync_killer_panel() -> void:
 	if k == null:
 		return
 	if k.char_id == "wraith":
-		power_label.text = "%s: %s" % [Locale.t("power.bell"),
-				Locale.t("power.bell.cloaked" if k.cloaked else "power.bell.uncloaked")]
+		if k._bell_active:
+			var pct := clampf(k._bell_progress / k._bell_duration, 0.0, 1.0)
+			power_label.text = "%s — %s" % [Locale.t("power.bell"),
+					Locale.t("power.bell.ringing")]
+			bell_bar.visible = true
+			bell_bar.value = pct * 100.0
+		else:
+			power_label.text = "%s: %s" % [Locale.t("power.bell"),
+					Locale.t("power.bell.cloaked" if k.cloaked else "power.bell.uncloaked")]
+			bell_bar.visible = false
 	else:
 		power_label.text = "%s: %d" % [Locale.t("power.bear_trap"), k.trap_stock]
+		bell_bar.visible = false
 	bloodlust_bar.value = k.bloodlust_tier
 	if bl_vignette != null:
 		var show := k.bloodlust_tier > 0

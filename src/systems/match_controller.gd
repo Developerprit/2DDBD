@@ -117,6 +117,18 @@ func _begin() -> void:
 				_test_instinct = true
 			"--test-release":
 				_test_release = true
+			"--test-wraith":
+				_test_wraith = true
+				GameConfig.selected_killer = "wraith"
+				_killer_forced = true
+			"--test-lunge":
+				_test_lunge = true
+				GameConfig.selected_killer = "trapper"
+				_killer_forced = true
+			"--test-ai":
+				_test_ai = true
+				GameConfig.selected_killer = "trapper"
+				_killer_forced = true
 			"--no-random-char":
 				_no_random_chars = true
 	var uargs := OS.get_cmdline_user_args()
@@ -127,6 +139,7 @@ func _begin() -> void:
 			seed_value = int(uargs[i + 1])
 		if uargs[i] == "--killer" and i + 1 < uargs.size():
 			GameConfig.selected_killer = uargs[i + 1]
+			_killer_forced = true
 		if uargs[i] == "--survivor" and i + 1 < uargs.size():
 			GameConfig.selected_survivor = uargs[i + 1]
 	GameConfig.player_role = player_role
@@ -156,6 +169,15 @@ func _begin() -> void:
 		return
 	if _test_release:
 		_run_release_test()
+		return
+	if _test_wraith:
+		_run_wraith_test()
+		return
+	if _test_lunge:
+		_run_lunge_test()
+		return
+	if _test_ai:
+		_run_ai_test()
 		return
 	_setup_camera()
 	AudioDirector.start_ambient()
@@ -432,9 +454,11 @@ func _spawn_actors() -> void:
 	# The human (when playing survivor) controls roster[0]; that slot is already a
 	# random draw, so no special-casing is needed.
 
-	# The killer is a random draw from the killer pool as well.
+	# The killer is a random draw from the killer pool as well -- unless a test
+	# or --killer override pinned a specific one.
 	var killer_pool: Array = GameConfig.killers.keys()
-	GameConfig.selected_killer = killer_pool[randi() % killer_pool.size()]
+	if not _killer_forced:
+		GameConfig.selected_killer = killer_pool[randi() % killer_pool.size()]
 
 	var idx := 0
 	for i in 4:
@@ -696,6 +720,10 @@ var _test_pallet := false
 var _test_kick := false
 var _test_instinct := false
 var _test_release := false
+var _test_wraith := false
+var _test_lunge := false
+var _test_ai := false
+var _killer_forced := false
 var _no_random_chars := false
 var _vault_counter := 0
 var _web_checked := false
@@ -1139,6 +1167,251 @@ func _run_release_test() -> void:
 	print("[release-test] killer adjacent -> bot state=%s after %.2fs  %s"
 			% [bot.machine.current_name, float(frames) / 60.0,
 			"PASS" if released else "FAIL"])
+	get_tree().quit()
+
+
+## Wraith "Wailing Bell" assertion test. Drives the real bell channel and proves
+## every number in the user's spec: 2.5 s to ENTER cloak, 3 s to EXIT, 5.0 m/s
+## while cloaked, a 150% burst for 1 s on materialising, and the distance-based
+## stealth (invisible past 20 m, faint shimmer within).
+func _run_wraith_test() -> void:
+	if killer == null or not is_instance_valid(killer):
+		print("[wraith-test] no killer  FAIL"); get_tree().quit(); return
+	if killer.char_id != "wraith":
+		print("[wraith-test] killer is '%s', not wraith  FAIL" % killer.char_id); get_tree().quit(); return
+	# Isolate the killer: no brain, so it won't auto-uncloak on its own and we
+	# can measure the cloaked state the instant the bell finishes.
+	killer.is_ai = false
+	if killer.brain != null:
+		killer.brain = null
+	var ok := true
+	var F := 60  # fixed-fps rate
+
+	# --- 1. Bell ENTER: 2.5 s channel, then cloaked, speed 5.0 m/s ----------
+	killer.cloaked = false
+	killer.attack_cooldown = 0.0
+	killer.request_power()
+	var entered_bell := killer.machine.current_name == "bell"
+	print("[wraith-test] bell-enter state=%s  %s" % [killer.machine.current_name, "PASS" if entered_bell else "FAIL"])
+	ok = ok and entered_bell
+	var f := 0
+	while f < F * 4 and not killer.cloaked:
+		await get_tree().physics_frame
+		f += 1
+	await get_tree().physics_frame
+	var bell_in := killer.cloaked and f >= int(F * 2.5 - 0.4 * F) and f <= int(F * 2.5 + 0.4 * F)
+	print("[wraith-test] cloaked after %d frames (~%.2fs, want ~2.5s)  %s" % [f, float(f) / F, "PASS" if bell_in else "FAIL"])
+	ok = ok and bell_in
+	var cloak_speed := killer.base_speed()
+	var want_cloak := GameConfig.m(GameConfig.WRAITH_CLOAK_CLOAKED_SPEED)
+	var speed_ok := absf(cloak_speed - want_cloak) < 1.5
+	print("[wraith-test] cloaked speed=%.1f want=%.1f  %s" % [cloak_speed, want_cloak, "PASS" if speed_ok else "FAIL"])
+	ok = ok and speed_ok
+
+	# --- 2. Distance-based stealth (player POV): 0 beyond 20 m, shimmer <20 --
+	var sv: Survivor = survivors[0] if not survivors.is_empty() else null
+	if sv != null:
+		sv.is_ai = false  # the stealth rule keys off the (human) local survivor
+		killer.cloaked = true
+		sv.global_position = killer.global_position + Vector2(GameConfig.TILE * 30, 0)  # 30 m
+		var a_far := killer._cloak_target_alpha()
+		sv.global_position = killer.global_position + Vector2(GameConfig.TILE * 10, 0)  # 10 m
+		var a_near := killer._cloak_target_alpha()
+		var far_ok := is_equal_approx(a_far, 0.0)
+		var near_ok := absf(a_near - GameConfig.WRAITH_CLOAK_SEMI_ALPHA) < 0.01
+		print("[wraith-test] alpha >20m=%.2f (want 0.00)  %s | <20m=%.2f (want %.2f)  %s"
+			% [a_far, "PASS" if far_ok else "FAIL", a_near, GameConfig.WRAITH_CLOAK_SEMI_ALPHA, "PASS" if near_ok else "FAIL"])
+		ok = ok and far_ok and near_ok
+		sv.is_ai = true
+		killer.cloaked = false
+
+	# --- 3. Bell EXIT: 3.0 s channel, uncloak grants 150% haste for 1 s -----
+	killer.cloaked = true
+	killer.attack_cooldown = 0.0
+	killer.request_power()
+	f = 0
+	while f < F * 4 and killer.cloaked:
+		await get_tree().physics_frame
+		f += 1
+	await get_tree().physics_frame
+	var uncloak_time_ok := (not killer.cloaked) and f >= int(F * 3.0 - 0.4 * F) and f <= int(F * 3.0 + 0.4 * F)
+	print("[wraith-test] uncloaked after %d frames (~%.2fs, want ~3.0s)  %s" % [f, float(f) / F, "PASS" if uncloak_time_ok else "FAIL"])
+	ok = ok and uncloak_time_ok
+	var haste_speed := killer.base_speed()
+	var want_haste := GameConfig.m(GameConfig.K_RUN) * GameConfig.WRAITH_UNCLOAK_HASTE_MULT
+	var haste_ok := absf(haste_speed - want_haste) < 1.5
+	print("[wraith-test] uncloak haste speed=%.1f want=%.1f  %s" % [haste_speed, want_haste, "PASS" if haste_ok else "FAIL"])
+	ok = ok and haste_ok
+	# The burst must decay after ~1 s back to the normal 4.6 m/s run.
+	f = 0
+	while f < int(F * 1.3):
+		await get_tree().physics_frame
+		f += 1
+	var after_speed := killer.base_speed()
+	var decay_ok := absf(after_speed - GameConfig.m(GameConfig.K_RUN)) < 1.5
+	print("[wraith-test] speed after haste=%.1f want=%.1f  %s" % [after_speed, GameConfig.m(GameConfig.K_RUN), "PASS" if decay_ok else "FAIL"])
+	ok = ok and decay_ok
+
+	print("[wraith-test] RESULT: %s" % ("PASS" if ok else "FAIL"))
+	get_tree().quit()
+
+
+## Lunge vs Quick attack. A quick swing only reaches the base 2.9 tiles; a lunge
+## multiplies reach by 1.5 AND dashes the killer forward, so from the same mid
+## range a quick whiffs while a lunge connects -- and the lunge physically moves
+## the killer toward the survivor.
+func _run_lunge_test() -> void:
+	if killer == null or not is_instance_valid(killer):
+		print("[lunge-test] no killer  FAIL"); get_tree().quit(); return
+	if killer.char_id == "wraith":
+		print("[lunge-test] wraith cannot swing while cloaked  FAIL"); get_tree().quit(); return
+	killer.is_ai = false
+	if killer.brain != null:
+		killer.brain = null
+	var ok := true
+	var D := 3.75  # tiles -> 60 px, between quick (2.9) and lunge (4.35) reach
+	var sv: Survivor = survivors[0] if not survivors.is_empty() else null
+	if sv == null:
+		print("[lunge-test] no survivor  FAIL"); get_tree().quit(); return
+	sv.is_ai = false  # keep it parked
+
+	# Find an open stretch with clear line of sight for the swing.
+	var candidates: Array = []
+	for s in survivors:
+		candidates.append(s.global_position)
+	candidates.append(killer.global_position)
+	var base := Vector2.ZERO
+	var chosen := false
+	for c in candidates:
+		var t: Vector2 = c + Vector2(GameConfig.TILE * D, 0)
+		if not killer.blocked_by_wall(c, t):
+			base = c
+			chosen = true
+			break
+	if not chosen:
+		print("[lunge-test] no open LOS spot found  FAIL"); get_tree().quit(); return
+	var target := base + Vector2(GameConfig.TILE * D, 0)
+
+	# Quick attack from this range must MISS.
+	sv.health = Enums.Health.HEALTHY
+	killer.global_position = base
+	sv.global_position = target
+	killer.face_towards(target)
+	killer.attack_cooldown = 0.0
+	killer.machine.force("attack", {"lunge": false})
+	var f := 0
+	while f < 120 and killer.machine.current_name == "attack":
+		await get_tree().physics_frame
+		f += 1
+	await get_tree().physics_frame
+	var quick_miss := sv.health == Enums.Health.HEALTHY
+	print("[lunge-test] quick @%.1fm -> %s (want HEALTHY/MISS)  %s"
+		% [D, Enums.health_to_string(sv.health), "PASS" if quick_miss else "FAIL"])
+	ok = ok and quick_miss
+
+	# Lunge attack from the SAME range must HIT.
+	sv.health = Enums.Health.HEALTHY
+	killer.global_position = base
+	sv.global_position = target
+	killer.face_towards(target)
+	killer.attack_cooldown = 0.0
+	killer.machine.force("attack", {"lunge": true})
+	f = 0
+	while f < 120 and killer.machine.current_name == "attack":
+		await get_tree().physics_frame
+		f += 1
+	await get_tree().physics_frame
+	var lunge_hit := sv.health != Enums.Health.HEALTHY
+	print("[lunge-test] lunge @%.1fm -> %s (want INJURED/HIT)  %s"
+		% [D, Enums.health_to_string(sv.health), "PASS" if lunge_hit else "FAIL"])
+	ok = ok and lunge_hit
+
+	# A lunge also drives the killer FORWARD (the dash).
+	sv.health = Enums.Health.HEALTHY
+	killer.global_position = base
+	sv.global_position = target
+	killer.face_towards(target)
+	killer.attack_cooldown = 0.0
+	var start_pos := killer.global_position
+	killer.machine.force("attack", {"lunge": true})
+	f = 0
+	while f < 120 and killer.machine.current_name == "attack":
+		await get_tree().physics_frame
+		f += 1
+	await get_tree().physics_frame
+	var dash := killer.global_position.distance_to(start_pos)
+	var dashed := dash > GameConfig.TILE * 1.0
+	print("[lunge-test] lunge forward displacement=%.1fpx (want > %d)  %s"
+		% [dash, GameConfig.TILE, "PASS" if dashed else "FAIL"])
+	ok = ok and dashed
+
+	print("[lunge-test] RESULT: %s" % ("PASS" if ok else "FAIL"))
+	get_tree().quit()
+
+
+## Killer-AI sanity check. The old brain whiffed because it swung without facing
+## the target. This parks one survivor in front of an AI killer and asserts that
+## (a) the killer actually commits to a swing, (b) it faces the victim (within the
+## 35 deg swing arc) the whole time it is swinging, and (c) it connects.
+func _run_ai_test() -> void:
+	if killer == null or not is_instance_valid(killer):
+		print("[ai-test] no killer  FAIL"); get_tree().quit(); return
+	if not killer.is_ai:
+		print("[ai-test] killer is local (no brain); run with --as-survivor  FAIL"); get_tree().quit(); return
+	var ok := true
+	var victim: Survivor = null
+	for s in survivors:
+		if is_instance_valid(s):
+			victim = s
+			break
+	if victim == null:
+		print("[ai-test] no survivor  FAIL"); get_tree().quit(); return
+	victim.is_ai = false  # park it in front of the killer
+
+	var candidates: Array = []
+	for s in survivors:
+		candidates.append(s.global_position)
+	candidates.append(killer.global_position)
+	var base := Vector2.ZERO
+	var chosen := false
+	for c in candidates:
+		var t: Vector2 = c + Vector2(GameConfig.TILE * 4.0, 0)
+		if not killer.blocked_by_wall(c, t):
+			base = c
+			chosen = true
+			break
+	if not chosen:
+		print("[ai-test] no open LOS spot found  FAIL"); get_tree().quit(); return
+	killer.global_position = base
+	victim.global_position = base + Vector2(GameConfig.TILE * 4.0, 0)
+	killer.face_towards(victim.global_position)
+	for s in survivors:
+		if s != victim and is_instance_valid(s):
+			s.global_position = base + Vector2(0, GameConfig.TILE * 40.0)
+
+	var max_facing_err := 0.0
+	var saw_attack := false
+	var f := 0
+	var limit := 60 * 8  # 8 s
+	while f < limit:
+		await get_tree().physics_frame
+		f += 1
+		if killer.machine.current_name == "attack":
+			saw_attack = true
+			var to := victim.global_position - killer.global_position
+			if to.length() > 1.0:
+				var err := absf(Utils.angle_delta(killer.facing_rad, to.angle()))
+				max_facing_err = maxf(max_facing_err, err)
+		if victim.health != Enums.Health.HEALTHY:
+			break
+	var hit := victim.health != Enums.Health.HEALTHY
+	var faced_ok := max_facing_err < deg_to_rad(35.0) + 0.01
+	print("[ai-test] entered attack=%s  max facing err=%.1f deg (want <35)  %s"
+		% [str(saw_attack), rad_to_deg(max_facing_err), "PASS" if (saw_attack and faced_ok) else "FAIL"])
+	print("[ai-test] survivor downed/injured in %.1fs=%s  %s"
+		% [float(f) / 60.0, str(hit), "PASS" if hit else "FAIL"])
+	ok = ok and saw_attack and faced_ok and hit
+	print("[ai-test] RESULT: %s" % ("PASS" if ok else "FAIL"))
 	get_tree().quit()
 
 

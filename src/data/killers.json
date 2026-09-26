@@ -150,11 +150,14 @@
       "id": "bell",
       "name_key": "power.bell",
       "desc_key": "power.bell.desc",
-      "cloak_speed": 6.0,
+      "cloak_speed": 5.0,
       "uncloak_speed": 4.6,
-      "uncloak_lock": 1.5,
-      "uncloak_slow": 0.86,
-      "cloak_alpha": 0.14,
+      "cloak_alpha": 0.18,
+      "vis_range": 20.0,
+      "bell_cloak_time": 2.5,
+      "bell_uncloak_time": 3.0,
+      "uncloak_haste_mult": 1.5,
+      "uncloak_haste_time": 1.0,
       "toggle_cd": 0.3
     },
     "addons": []

@@ -71,7 +71,7 @@ func think(delta: float) -> void:
 	search_timer -= delta
 	_update_stuck(delta)
 
-	if k.machine.current_name in ["attack", "stun", "hooking", "vault", "place_trap", "break_pallet"]:
+	if k.machine.current_name in ["attack", "stun", "hooking", "vault", "place_trap", "break_pallet", "bell"]:
 		k.move_input = Vector2.ZERO
 		return
 
@@ -108,13 +108,16 @@ func think(delta: float) -> void:
 			scratch_follows += 1
 		last_mode = mode
 
-	# Wraith: phase out while roaming (faster, silent, no red stain) and phase
-	# back in the instant a survivor is in reach so the swing can actually land.
+	# Wraith: stay cloaked (fast + silent) while closing the gap, then ring the
+	# bell to materialise only once the survivor is close enough that the 3 s
+	# channel can actually pay off in a swing. Ringing from across the map would
+	# just telegraph the reveal for nothing.
 	if k.char_id == "wraith":
-		if mode == Mode.CHASE:
-			if k.is_cloaked():
-				k.request_power()
-		elif not k.is_cloaked():
+		var close := target != null and is_instance_valid(target) \
+				and k.global_position.distance_to(target.global_position) < GameConfig.TILE * 4.5
+		if mode == Mode.CHASE and close and k.is_cloaked():
+			k.request_power()
+		elif mode != Mode.CHASE and not k.is_cloaked():
 			k.request_power()
 
 	match mode:
@@ -141,19 +144,32 @@ func _mode_chase(delta: float) -> void:
 			mode = Mode.CARRY
 			return
 
-	# In range and facing roughly the right way -> swing.
-	if dist < ATTACK_RANGE and k.attack_cooldown <= 0.0 \
-			and k.machine.has_state("attack") and k.machine.current_name != "attack" \
+	# Swing when the target is in reach. A Quick Attack covers ~2.6 m; a Lunge
+	# Attack flings the killer forward at 1.5x and reaches ~5+ m, so we use it to
+	# catch a survivor who is just out of quick-attack range. We always turn to
+	# face the target first -- swinging while looking the wrong way was the main
+	# reason the bots whiffed every other chase.
+	if k.attack_cooldown <= 0.0 and k.machine.current_name == "move" \
 			and not k.blocked_by_wall(k.global_position, target.global_position):
-		k.machine.force("attack")
-		return
+		var to_t := (target.global_position - k.global_position).angle()
+		var facing_ok := absf(Utils.angle_delta(k.facing_rad, to_t)) < deg_to_rad(35.0)
+		if dist < ATTACK_RANGE:
+			if facing_ok:
+				k.machine.force("attack", {"lunge": false})
+				return
+			k.face_towards(target.global_position)
+		elif dist < GameConfig.TILE * 5.2:
+			if facing_ok:
+				k.machine.force("attack", {"lunge": true})
+				return
+			k.face_towards(target.global_position)
 
 	# Lead the target. Walking to where they *are* loses ground permanently against
 	# anyone running in a straight line, because they keep moving while you close --
 	# which is why the bots would trail a metre behind for an entire chase and only
 	# ever land a hit when the survivor ran into a wall.
 	var eta := dist / maxf(1.0, GameConfig.m(GameConfig.K_RUN))
-	goal = target.global_position + target.velocity * eta * 0.55
+	goal = target.global_position + target.velocity * eta * 0.6
 
 	# Cutting the loop. Tracing a survivor around a window or a pallet is a losing
 	# race: he is turning tighter than you and every lap costs you the same distance

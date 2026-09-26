@@ -37,10 +37,16 @@ var trap_stock := GameConfig.TRAP_START
 var placed_traps: Array = []
 var trap_on_ground: BearTrap = null
 
-# --- power: Wraith "Wailing Bell" (cloak) ---------------------------------
+# --- power: Wraith "Wailing Bell" (cloak / uncloak channel) --------------
 var cloaked := false
-var _cloak_cd := 0.0          ## anti-flicker toggle cooldown
-var _uncloak_lock := 0.0      ## materialise-slow timer after uncloaking
+## Bell channel: ringing the Wailing Bell is not instant. Entering cloak takes
+## 2.5 s, exiting takes 3 s, and the killer is slowed + cannot act mid-ring.
+var _bell_active := false
+var _bell_progress := 0.0
+var _bell_duration := 0.0
+var _bell_target_cloak := false
+## Uncloak haste: materialising grants 150% speed for a short burst.
+var _cloak_haste_time := 0.0
 
 # --- misc ------------------------------------------------------------------
 var speed_mult := 1.0
@@ -128,6 +134,7 @@ func _register_states() -> void:
 	machine.register("place_trap", PlaceTrapState.new(machine, self))
 	machine.register("damage_gen", DamageGenState.new(machine, self))
 	machine.register("stun", StunState.new(machine, self))
+	machine.register("bell", BellState.new(machine, self))
 
 
 # ---------------------------------------------------------------------------
@@ -135,15 +142,18 @@ func _register_states() -> void:
 # ---------------------------------------------------------------------------
 func base_speed() -> float:
 	if char_id == "wraith":
-		# The cloak branch used to bypass the carrying / cooldown / bloodlust
-		# modifiers entirely (a cloaked carry sprinted at cloak speed) and it
-		# returned a 4.4 m/s uncloaked pace that was slower than every other
-		# killer. Route through the normal modifiers instead.
+		# Ringing the bell locks the killer in place (vulnerable, slowed). The
+		# channel cannot be rushed, so this is applied first and bypasses the
+		# normal modifiers entirely.
+		if _bell_active:
+			return GameConfig.m(GameConfig.K_RUN) * GameConfig.WRAITH_BELL_SLOW * speed_mult
 		var s := GameConfig.m(GameConfig.K_RUN)
 		if cloaked:
+			# Cloaked: the bell IS the speed boost -- 5.0 m/s.
 			s = GameConfig.m(GameConfig.WRAITH_CLOAK_CLOAKED_SPEED)
-		elif _uncloak_lock > 0.0:
-			s *= GameConfig.WRAITH_CLOAK_UNCLOAK_SLOW
+		elif _cloak_haste_time > 0.0:
+			# Just materialised: a 150% burst for ~1 s to close the gap.
+			s *= GameConfig.WRAITH_UNCLOAK_HASTE_MULT
 		if is_carrying:
 			s = minf(s, GameConfig.m(GameConfig.K_CARRY))
 		elif attack_cooldown > 0.0:
@@ -218,6 +228,10 @@ func _interact_pressed() -> void:
 	if is_carrying:
 		hook_carried()
 		return
+	# You cannot pick up, vault, break or kick from the phase world. Ringing the
+	# bell to materialise is the only way out, and it costs the 3 s channel.
+	if _try_uncloak_for_action():
+		return
 	if machine.current_name != "move":
 		return
 	# Standing over a downed survivor picks them up; otherwise vault a window
@@ -231,7 +245,6 @@ func _interact_pressed() -> void:
 		return
 	var p := nearest_breakable_pallet()
 	if p != null and machine.has_state("break_pallet"):
-		_uncloak_for_interaction()
 		machine.force("break_pallet", {"target": p})
 		return
 	# Damaging a generator: the killer's only way to take progress back off the
@@ -239,15 +252,16 @@ func _interact_pressed() -> void:
 	# finished it.
 	var g := nearest_kickable_generator()
 	if g != null and machine.has_state("damage_gen"):
-		_uncloak_for_interaction()
 		machine.force("damage_gen", {"target": g})
 
 
-## Handling a body, smashing a board or kicking a machine cannot be done from
-## the phase world -- the cloak rips away first.
-func _uncloak_for_interaction() -> void:
-	if cloaked:
-		toggle_cloak()
+## Start the uncloak channel if the killer is cloaked and free to act. Returns
+## true when it did, so the caller can abort the interaction it was about to do.
+func _try_uncloak_for_action() -> bool:
+	if cloaked and machine.current_name == "move" and not _bell_active:
+		_start_bell(false)
+		return true
+	return false
 
 
 func nearest_kickable_generator() -> Generator:
@@ -490,21 +504,20 @@ func _nearest_pallet_in_state(st: int) -> Pallet:
 	return best
 
 
-func request_attack() -> void:
-	if cloaked:
-		# You cannot swing while invisible -- pressing attack reveals you instead.
-		toggle_cloak()
+func request_attack(lunge := false) -> void:
+	if char_id == "wraith" and cloaked:
+		# You cannot swing while invisible. Pressing attack starts the 3 s bell to
+		# materialise; only then can a swing land.
+		if machine.current_name == "move" and not _bell_active:
+			_start_bell(false)
 		return
-	if machine.current_name in ["attack", "stun", "hooking", "break_pallet", "vault", "carry"]:
+	if machine.current_name in ["attack", "stun", "hooking", "break_pallet", "vault", "carry", "bell"]:
 		return
 	if attack_cooldown > 0.0 or blinding_time > 0.0:
 		return
-	# A carry swing is a lunge that drops the victim instead.
-	machine.change("attack")
-
-
-func lunge_request() -> bool:
-	return false
+	# `lunge` is explicit for the AI; for the human player the AttackState decides
+	# lunge-vs-quick from how long the attack button is held.
+	machine.change("attack", {"lunge": lunge})
 
 
 ## Returns true when the swing connected. The caller (AttackState) uses it to
@@ -538,8 +551,9 @@ func perform_attack(is_lunge := false) -> bool:
 		hits.append(sv)
 
 	if hits.is_empty():
-		# Whiff: shorter cooldown, and Unrelenting shaves it further. No wipe.
-		var cd := GameConfig.K_ATTACK_COOLDOWN_TIME * 0.75
+		# Whiff: the DBD-standard 1.5 s cooldown (half of the 3 s hit cooldown).
+		# Unrelenting shaves it further. No blade-wipe.
+		var cd := GameConfig.K_ATTACK_COOLDOWN_TIME * 0.5
 		if perk_mods.has("miss_recover"):
 			cd *= float(perk_mods["miss_recover"])
 		attack_cooldown = cd
@@ -568,10 +582,16 @@ func on_hit_landed(_victim: Node) -> void:
 
 
 func apply_stun(seconds: float) -> void:
-	## Stunning a Wraith rips him back into the visible world -- he cannot sit
-	## cloaked while stunned the way he otherwise could.
+	## Stunning a Wraith rips him back into the visible world -- a stun cancels
+	## any bell channel and materialises him instantly.
+	if _bell_active:
+		_bell_active = false
 	if cloaked:
-		toggle_cloak()
+		cloaked = false
+		_cloak_haste_time = 0.0
+		if red_stain != null:
+			red_stain.visible = true
+		power_state_changed.emit({"cloaked": false})
 	var s := seconds
 	if perk_mods.has("stun_resist"):
 		s *= (1.0 - float(perk_mods["stun_resist"]))
@@ -597,11 +617,14 @@ func apply_blind(seconds: float) -> void:
 func try_pickup() -> bool:
 	if is_carrying:
 		return false
+	# A cloaked Wraith cannot grab a body -- ring the bell first.
+	if _try_uncloak_for_action():
+		return false
 	var target := _find_pickup_target()
 	if target == null:
 		return false
-	# Grabbing a body materialises him: no lifting survivors from the phase world.
-	_uncloak_for_interaction()
+	# (If we reached here we are already uncloaked -- _try_uncloak_for_action()
+	# above aborted the grab while a Wraith was still cloaked.)
 	start_carry(target)
 	return true
 
@@ -715,7 +738,12 @@ func on_hook_complete(_sv: Survivor, _h: Hook) -> void:
 # ---------------------------------------------------------------------------
 func request_power() -> void:
 	if char_id == "wraith":
-		toggle_cloak()
+		# Ring the Wailing Bell toward whichever state we are not in. Entering
+		# cloak is 2.5 s, exiting is 3 s -- a locked, slowed channel that cannot
+		# be cancelled or rushed (except by a stun).
+		if _bell_active or machine.current_name != "move":
+			return
+		_start_bell(not cloaked)
 		return
 	if machine.current_name in ["attack", "stun", "carry", "hooking", "vault"]:
 		return
@@ -823,36 +851,62 @@ func is_cloaked() -> bool:
 	return cloaked
 
 
-## Toggle between solid and phased. Pressing the power key while invisible
-## reveals you; doing so while solid hides you. A short cooldown stops the key
-## from flickering the state every frame.
-func toggle_cloak() -> void:
-	if _cloak_cd > 0.0:
+## Ticks the uncloak haste and drives sprite transparency. A cloaked Wraith is
+## INVISIBLE beyond 20 m and only a faint shimmer within that bubble, so the
+## target alpha depends on distance to the local (human) survivor. Cloak writes
+## self_modulate (not modulate) so the wall-occlusion system, which writes
+## modulate.a on the *enemy*, never fights it.
+func _update_cloak(delta: float) -> void:
+	if _cloak_haste_time > 0.0:
+		_cloak_haste_time -= delta
+	if sprite != null:
+		var target := 1.0
+		if cloaked:
+			target = _cloak_target_alpha()
+		sprite.self_modulate.a = lerpf(sprite.self_modulate.a, target, minf(1.0, delta * 12.0))
+
+
+## Distance-based stealth: the local player cannot see a cloaked Wraith past 20 m.
+## Inside that bubble he reads as a faint shimmer; outside, nothing at all.
+func _cloak_target_alpha() -> float:
+	var vis := GameConfig.WRAITH_CLOAK_VIS_RANGE * GameConfig.TILE
+	var nearest := 1e9
+	for s in get_tree().get_nodes_in_group("survivor"):
+		var sv := s as Survivor
+		if sv == null or not is_instance_valid(sv) or sv.is_ai:
+			continue
+		nearest = minf(nearest, global_position.distance_to(sv.global_position))
+	if nearest > vis:
+		return 0.0
+	return GameConfig.WRAITH_CLOAK_SEMI_ALPHA
+
+
+## Begin ringing the Wailing Bell. `target_cloak` is true to ENTER cloak
+## (2.5 s) or false to EXIT it (3 s).
+func _start_bell(target_cloak: bool) -> void:
+	if _bell_active or machine.current_name != "move":
 		return
-	_cloak_cd = GameConfig.WRAITH_CLOAK_TOGGLE_CD
-	cloaked = not cloaked
+	_bell_active = true
+	_bell_target_cloak = target_cloak
+	_bell_duration = GameConfig.WRAITH_BELL_CLOAK_TIME if target_cloak \
+			else GameConfig.WRAITH_BELL_UNCLOAK_TIME
+	_bell_progress = 0.0
+	machine.change("bell")
+
+
+## The bell finishes: flip the cloak state. Exiting cloak grants the 150% speed
+## burst that lets the Wraith actually close on a survivor he just revealed.
+func _finish_bell() -> void:
+	_bell_active = false
+	cloaked = _bell_target_cloak
 	if not cloaked:
-		# Uncloaking carries a beat of vulnerability: slower and fully visible.
-		_uncloak_lock = GameConfig.WRAITH_CLOAK_UNCLOAK_LOCK
+		_cloak_haste_time = GameConfig.WRAITH_UNCLOAK_HASTE_TIME
 	if red_stain != null:
 		red_stain.visible = not cloaked
 	power_state_changed.emit({"cloaked": cloaked})
 	EventBus.toast.emit("%s — %s" % [Locale.t("power.bell"),
 			Locale.t("power.bell.cloaked" if cloaked else "power.bell.uncloaked")],
 			Color(0.6, 0.8, 0.9))
-
-
-## Ticks the toggle cooldown, the materialise-lock slow, and the sprite
-## transparency. Cloak drives self_modulate (not modulate) so the line-of-sight
-## occlusion system, which writes modulate.a on the *enemy*, never fights it.
-func _update_cloak(delta: float) -> void:
-	if _cloak_cd > 0.0:
-		_cloak_cd -= delta
-	if _uncloak_lock > 0.0:
-		_uncloak_lock -= delta
-	if sprite != null:
-		var target := GameConfig.WRAITH_CLOAK_ALPHA if cloaked else 1.0
-		sprite.self_modulate.a = lerpf(sprite.self_modulate.a, target, minf(1.0, delta * 12.0))
 
 
 # ---------------------------------------------------------------------------
@@ -916,8 +970,9 @@ class MoveState:
 	func enter(_msg: Dictionary = {}) -> void:
 		var k := actor as Killer
 		if k.sprite != null:
-			# Keep the cloak's transparency instead of wiping it back to solid.
-			k.sprite.self_modulate = Color(1, 1, 1, GameConfig.WRAITH_CLOAK_ALPHA if k.cloaked else 1.0)
+			# Let _update_cloak handle the cloak transparency each frame; just make
+			# sure an uncloaked entry is fully solid and a cloaked one starts hidden.
+			k.sprite.self_modulate = Color(1, 1, 1, 1.0 if not k.cloaked else 0.0)
 
 	func physics(delta: float) -> void:
 		var k := actor as Killer
@@ -929,13 +984,22 @@ class MoveState:
 		var k := actor as Killer
 		if k.is_ai:
 			return
-		if k.try_pickup():
+		# A cloaked Wraith is intangible -- he cannot grab a body, and more
+		# importantly he must be free to STAY cloaked while he moves. Auto-pickup
+		# (walking over a downed survivor) is skipped while cloaked; the human
+		# presses interact to ring the bell and materialise first. Without this
+		# guard the Wraith uncloaked itself on the very first move frame.
+		if not k.cloaked and k.try_pickup():
 			machine.change("carry")
 
 
 class AttackState:
 	extends StateMachine.State
 
+	## Basic attacks come in two flavours (DBD): a Quick Attack is a short, snappy
+	## swing with no forward movement, and a Lunge Attack is a held swing that
+	## flings the killer forward at 1.5x for extra reach (~6 m). A human player
+	## decides which by holding the button; the AI passes it in explicitly.
 	var _phase := 0
 	var _timer := 0.0
 	var _windup := 0.35
@@ -945,34 +1009,64 @@ class AttackState:
 	## is not locked in a wipe animation for a swing that touched nothing.
 	var _wipe := 0.55
 	var _connected := false
+	var _is_lunge := false
+	var _lunge_dir := Vector2.ZERO
 
-	func enter(_msg: Dictionary = {}) -> void:
+	func enter(msg: Dictionary = {}) -> void:
 		var k := actor as Killer
+		# A cloaked Wraith cannot swing. The brain uncloaks before attacking, so
+		# this is just a safety net: bail back to the chase without toggling.
 		if k.cloaked:
-			# A cloaked swing is impossible: reveal first, then return to the chase.
-			k.toggle_cloak()
 			machine.change("move")
 			return
+		_is_lunge = bool(msg.get("lunge", false))
 		var cfg: Dictionary = GameConfig.killers.get(k.char_id, {})
 		var atk: Dictionary = cfg.get("attack", {})
 		_windup = float(atk.get("windup", GameConfig.K_ATTACK_WINDUP))
 		_hit_delay = float(atk.get("weapon_hit_delay", 0.15))
+		# A lunge has a slightly longer open phase so the forward dash has room to
+		# actually extend the reach.
+		if _is_lunge:
+			_windup += 0.12
 		_phase = 0
 		_timer = 0.0
 		_connected = false
+		_lunge_dir = Vector2.ZERO
 		k.move_input = Vector2.ZERO
+		k.velocity = Vector2.ZERO
 		k.play_anim("attack_%s" % Utils.facing_suffix(k.facing), true)
 		EventBus.killer_attack.emit(true)
 		AudioDirector.play_at("chase_start", k.global_position, k._camera(), -18.0)
 
+	## A held attack button promotes the swing to a lunge mid-open (human only;
+	## the AI sets `_is_lunge` up front).
+	func _promote_lunge(k: Killer) -> bool:
+		if _is_lunge:
+			return true
+		if not k.is_ai and Input.is_action_pressed("attack"):
+			return true
+		return false
+
 	func physics(delta: float) -> void:
 		var k := actor as Killer
-		# A lunge carries the killer forward during the swing.
-		if _phase == 1 and k.wish_dir.length() > 0.1:
-			k.velocity = k.wish_dir * GameConfig.m(GameConfig.K_LUNGE) * 0.7
-			k.move_and_slide()
-			k._post_move(delta)
+		if _phase == 0:
+			if _promote_lunge(k):
+				_is_lunge = true
+			if _is_lunge:
+				# Dash forward at 1.5x. Direction is where the killer is heading
+				# (or facing, if standing still) so the lunge follows the aim.
+				if _lunge_dir == Vector2.ZERO:
+					_lunge_dir = k.wish_dir if k.wish_dir.length() > 0.1 \
+							else Vector2(cos(k.facing_rad), sin(k.facing_rad))
+				k.set_facing_from(_lunge_dir)
+				k.velocity = _lunge_dir * GameConfig.m(GameConfig.K_LUNGE)
+				k.move_and_slide()
+				k._post_move(delta)
+			else:
+				k.move_input = Vector2.ZERO
+				k.apply_movement(delta)
 		else:
+			# Recover in place; no movement during the blade-wipe.
 			k.move_input = Vector2.ZERO
 			k.apply_movement(delta)
 
@@ -984,14 +1078,18 @@ class AttackState:
 				if _timer >= _windup:
 					_phase = 1
 					_timer = 0.0
-					_connected = k.perform_attack(false)
+					# A late promotion (button held just after the swing began)
+					# still counts as a lunge, just without the forward dash.
+					if _promote_lunge(k):
+						_is_lunge = true
+					_connected = k.perform_attack(_is_lunge)
 			1:
 				if _timer >= _hit_delay:
 					_phase = 2
 					_timer = 0.0
 			2:
 				# A connected swing wipes the blade (0.55s). A whiff barely pauses.
-				if _timer >= (_wipe if _connected else 0.08):
+				if _timer >= (_wipe if _connected else 0.12):
 					machine.change("move")
 
 
@@ -1252,3 +1350,38 @@ class StunState:
 		var k := actor as Killer
 		if k.stun_time <= 0.0:
 			machine.change("carry" if k.is_carrying else "move")
+
+
+class BellState:
+	extends StateMachine.State
+	## Ringing the Wailing Bell. The killer is locked, slowed and vulnerable for
+	## the whole channel (2.5 s to cloak, 3 s to uncloak) and cannot cancel it
+	## except by being stunned. On completion _finish_bell() flips the cloak.
+
+	func enter(_msg: Dictionary = {}) -> void:
+		var k := actor as Killer
+		k.move_input = Vector2.ZERO
+		k.velocity = Vector2.ZERO
+		# Reuse the swing pose as a "ringing" tell; the sprite stays solid (the
+		# killer is visible while he rings) so the survivor gets a fair warning.
+		k.play_anim("attack_%s" % Utils.facing_suffix(k.facing), true)
+		EventBus.toast.emit("%s — %s" % [Locale.t("power.bell"),
+				Locale.t("power.bell.ringing")], Color(0.6, 0.8, 0.9))
+
+	func physics(delta: float) -> void:
+		var k := actor as Killer
+		# _update_cloak / base_speed apply the bell slow; just integrate it.
+		k.move_input = Vector2.ZERO
+		k.apply_movement(delta)
+
+	func update(delta: float) -> void:
+		var k := actor as Killer
+		if not k._bell_active:
+			# Stun cancelled the channel mid-ring.
+			machine.change("move")
+			return
+		k._bell_progress += delta
+		if k._bell_progress >= k._bell_duration:
+			k._finish_bell()
+			machine.change("move")
+

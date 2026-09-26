@@ -29,8 +29,11 @@ const K_RUN := 4.6
 const K_CARRY := 3.68
 const K_COOLDOWN := 2.76          ## 3s after a swing
 const K_BLOODLUST := [4.78, 4.97, 5.15]
-const K_LUNGE := 6.0
-const K_LUNGE_TIME := 0.5
+## Lunge dash speed: a Lunge Attack briefly boosts the killer to 1.5x of his base
+## 4.6 m/s, i.e. ~6.9 m/s. That boost -- not the swing itself -- is what gives the
+## lunge its extra reach (~6 m in practice), so this is the number the AttackState
+## uses to fling the killer forward during the open phase.
+const K_LUNGE := 6.9
 const K_LUNGE_RECOVER := 1.0
 const K_WINDOW_VAULT_TIME := 1.5
 const K_PALLET_BREAK_TIME := 2.6
@@ -165,17 +168,21 @@ const TRAP_INJURE_ON_ESCAPE := true
 # ---------------------------------------------------------------------------
 # Wraith (幽灵) — "Wailing Bell" cloak power
 # ---------------------------------------------------------------------------
-## Cloaked the killer leaves no red stain and makes no heartbeat, and moves a
-## touch faster. Uncloaking takes a moment of vulnerability (slower + visible)
-## before he is back to full pace. He cannot attack while cloaked.
-const WRAITH_CLOAK_CLOAKED_SPEED := 6.0   ## m/s while invisible -- the cloak IS his speed boost
-const WRAITH_UNCLOAK_SPEED := 4.6         ## m/s once fully materialised (base killer pace)
-const WRAITH_CLOAK_UNCLOAK_SLOW := 0.86   ## speed multiplier during the materialise lock
-const WRAITH_CLOAK_UNCLOAK_LOCK := 1.5   ## seconds of slow + visible after uncloaking
-const WRAITH_CLOAK_TOGGLE_CD := 0.3       ## min seconds between cloak toggles (anti-flicker)
-## 0.45 left him plainly visible -- "the invisibility is bugged". A cloaked
-## Wraith is a faint shimmer: almost nothing, but never quite zero.
-const WRAITH_CLOAK_ALPHA := 0.14
+## A faithful take on the original's Wailing Bell:
+##   * ringing takes TIME -- 2.5 s to ENTER cloak, 3.0 s to EXIT it. The killer
+##     is locked (slowed, vulnerable) for the whole channel and cannot cancel it
+##     except by being stunned.
+##   * while cloaked he moves at 5.0 m/s and leaves no red stain / heartbeat.
+##   * materialising grants a 150% speed burst for 1 s (the "reveal lunge").
+##   * a cloaked Wraith is INVISIBLE beyond 20 m and only a faint shimmer within.
+const WRAITH_CLOAK_CLOAKED_SPEED := 5.0   ## m/s while invisible
+const WRAITH_CLOAK_VIS_RANGE := 20.0      ## m; beyond this a cloaked Wraith is fully invisible
+const WRAITH_CLOAK_SEMI_ALPHA := 0.18     ## faint shimmer alpha within the visibility bubble
+const WRAITH_UNCLOAK_HASTE_MULT := 1.5    ## 150% move speed on materialising
+const WRAITH_UNCLOAK_HASTE_TIME := 1.0    ## seconds the uncloak haste lasts
+const WRAITH_BELL_CLOAK_TIME := 2.5       ## s ringing to ENTER cloak
+const WRAITH_BELL_UNCLOAK_TIME := 3.0     ## s ringing to EXIT cloak
+const WRAITH_BELL_SLOW := 0.35            ## movement multiplier while ringing the bell
 
 # ---------------------------------------------------------------------------
 # Scoring (bloodpoints)
