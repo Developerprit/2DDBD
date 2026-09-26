@@ -21,6 +21,10 @@ const S_WALK := 2.26
 const S_CROUCH := 1.13
 const S_CRAWL := 0.72
 const S_HOOKED_STRUGGLE_SLOW := 0.0
+## Post-hit sprint: the moment a survivor is wounded they get a 200% burst for 1 s,
+## which is the window that actually lets them reach a pallet or window.
+const S_HIT_SPEED := 2.0
+const S_HIT_SPEED_TIME := 1.0
 
 # ---------------------------------------------------------------------------
 # Killer speeds
@@ -146,7 +150,10 @@ const SCRATCH_FOLLOW_RADIUS := 256.0    ## 16 m, per design
 ## to make the far side of a wall fall dark, not to make the floor unreadable.
 const AMBIENT_DARKNESS := 0.64          ## 1.0 = untouched, 0.0 = pitch black
 ## How transparent an enemy becomes when a wall is between you and them.
-const OCCLUDED_ALPHA := 0.30
+## A character with a wall between them and the local player is now FULLY hidden,
+## not merely dimmed -- teammates included. The old 0.30 fade read as "I can still
+## see them, just faintly", which defeats the point of line-of-sight.
+const OCCLUDED_ALPHA := 0.0
 const BLOODLUST_RESET := 4.0           ## seconds without a chase to lose a tier
 ## A chase does not end the instant line of sight breaks. As long as the target
 ## is still this close the Bloodlust clock keeps running -- without a grace

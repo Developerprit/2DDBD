@@ -68,6 +68,11 @@ func setup_base(p_team: int, sprite_set: String, is_killer_sprite: bool,
 	floor_stop_on_slope = false
 	wall_min_slide_angle = 0.0
 
+	# Characters sit above props (0) and above the killer's red stain (1) but below
+	# nothing else, so the stain can bleed through walls and props while bodies
+	# still occlude it correctly.
+	z_index = 2
+
 	sprite = AnimatedSprite2D.new()
 	sprite.name = "Sprite"
 	sprite.sprite_frames = AnimBuilder.build(sprite_set, is_killer_sprite)

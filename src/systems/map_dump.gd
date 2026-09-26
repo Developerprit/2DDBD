@@ -156,6 +156,36 @@ static func report(map_data: Dictionary, mc: MatchController) -> void:
 			% [gens.size(), hooks.size(), loops, map_data.get("lockers", []).size(),
 			map_data.get("chests", []).size(), map_data.get("gates", []).size()])
 
+	# Each gate must own a real interior vestibule, not a one-body slot: measure how
+	# far straight inward it stays open and how wide it is a few tiles in.
+	var gi := 0
+	for gate in map_data.get("gates", []):
+		var gcell := Utils.tile_of(gate["pos"])
+		var inward: Vector2 = gate.get("dir", Vector2.RIGHT)
+		var step := Vector2i(int(round(inward.x)), int(round(inward.y)))
+		var depth := 0
+		for dx in range(1, MapGenerator.GATE_ROOM_DEPTH + 1):
+			var c := gcell + step * dx
+			if c.x < 0 or c.y < 0 or c.x >= n or c.y >= n:
+				break
+			if grid[c.y * n + c.x] != MapGenerator.F_FLOOR:
+				break
+			depth += 1
+		var probe := gcell + step * 3
+		var width := 0
+		for dy in range(-MapGenerator.GATE_ROOM_HALF - 1, MapGenerator.GATE_ROOM_HALF + 2):
+			var c2 := Vector2i(probe.x, probe.y + dy)
+			if c2.x < 0 or c2.y < 0 or c2.x >= n or c2.y >= n:
+				continue
+			if grid[c2.y * n + c2.x] == MapGenerator.F_FLOOR:
+				width += 1
+		var gate_ok := depth >= MapGenerator.GATE_ROOM_DEPTH \
+				and width >= MapGenerator.GATE_ROOM_HALF * 2 + 1
+		print("[map] gate %d vestibule depth=%d/%d width=%d/%d  %s"
+				% [gi, depth, MapGenerator.GATE_ROOM_DEPTH, width,
+				MapGenerator.GATE_ROOM_HALF * 2 + 1, "PASS" if gate_ok else "FAIL"])
+		gi += 1
+
 	# Every objective must be walkable and reachable, or the match is a lottery.
 	var bad := 0
 	# Third field marks objects that legitimately live *inside* a wall tile.

@@ -62,6 +62,11 @@ const MIN_GENERATOR_DIST := 15.0
 const HOOK_COUNT := 12       ## the original uses 12; 25 was absurd
 const HOOK_MIN_DIST := 11.0
 const PALLET_MIN_DIST := 2.5
+## Gate vestibule size. The exit gate carves a real interior room this many tiles
+## deep and this many tiles either side of centre -- a one-body corridor is not
+## somewhere a survivor can stage, and the lever deserves open ground.
+const GATE_ROOM_DEPTH := 6
+const GATE_ROOM_HALF := 2
 
 ## How many floor variants the realm draws from. The tile atlas supplies six.
 const GROUND_VARIANTS := 6
@@ -1055,8 +1060,8 @@ static func _place_gates(g: PackedByteArray, n: int, rng: RandomNumberGenerator,
 			var y := mid + rng.randi_range(-(n / 2 - 8), (n / 2 - 8))
 			var score := 0.0
 			# Score the interior strip in front of the gate: it must be open.
-			for dy in range(-3, 4):
-				for dx in range(1, 6):
+			for dy in range(-GATE_ROOM_HALF, GATE_ROOM_HALF + 1):
+				for dx in range(1, GATE_ROOM_DEPTH + 2):
 					var xx := (1 + dx) if side == 0 else (n - 2 - dx)
 					if at(g, n, xx, y + dy) == F_FLOOR:
 						score += 1.0
@@ -1069,11 +1074,18 @@ static func _place_gates(g: PackedByteArray, n: int, rng: RandomNumberGenerator,
 
 		var cx := 1 if side == 0 else n - 2
 		var inward := Vector2(1, 0) if side == 0 else Vector2(-1, 0)
-		# Clear only the frame itself plus a short approach, never a 7x7 crater.
+		# Carve a real gate vestibule: the doorway itself, then an interior room of
+		# GATE_ROOM_DEPTH tiles reaching GATE_ROOM_HALF tiles either side of centre.
+		# The old version only widened a 3-tile slot, which left survivors nowhere
+		# to stage and the lever sitting in a one-body corridor.
 		_rect(g, n, cx - 1, best_y - 1, 3, 3, F_FLOOR)
-		for k in range(1, 4):
+		for k in range(1, GATE_ROOM_DEPTH + 1):
 			var ax := cx + int(inward.x) * k
-			_rect(g, n, ax - 1, best_y - 1, 3, 3, F_FLOOR)
+			# Never carve the border wall itself (x = 0 / n-1).
+			var x0 := maxi(1, ax - GATE_ROOM_HALF)
+			var x1 := mini(n - 2, ax + GATE_ROOM_HALF)
+			_rect(g, n, x0, best_y - GATE_ROOM_HALF, x1 - x0 + 1,
+					GATE_ROOM_HALF * 2 + 1, F_FLOOR)
 		set_at(g, n, cx, best_y, F_FLOOR)
 		gates.append({
 			"pos": Utils.tile_center(Vector2i(cx, best_y)),

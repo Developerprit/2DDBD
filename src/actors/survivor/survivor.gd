@@ -75,10 +75,11 @@ func setup(p_team: int, sprite_set: String, p_name: String, pid: int, ai: bool,
 		item_charges = float(GameConfig.items[item_kind].get("charges", 10.0))
 	_rebuild_perk_mods()
 	_register_states()
+	# `personal_perk` is informational only now. Perks are progression, so the
+	# loadout decides what is equipped; force-appending the signature here used to
+	# hand the player a free fifth perk that ignored the bloodweb entirely.
 	var cfg: Dictionary = GameConfig.survivors.get(sprite_set, {})
 	personal_perk = str(cfg.get("personal_perk", ""))
-	if personal_perk != "" and not perks.has(personal_perk):
-		perks.append(personal_perk)
 	_rebuild_perk_mods()
 
 
@@ -471,6 +472,9 @@ func take_hit(from_killer: Node, is_lunge := false) -> void:
 	match health:
 		Enums.Health.HEALTHY:
 			set_health(Enums.Health.INJURED)
+			# Post-hit sprint: the wound itself gives a short 200% burst. Without it
+			# a survivor who is hit in the open has no window to reach a loop at all.
+			_grant_perk_speed(GameConfig.S_HIT_SPEED, GameConfig.S_HIT_SPEED_TIME)
 			AudioDirector.play_at("scream_f" if pal_id in ["meg", "claudette"] else "scream_m",
 					global_position, _camera(), -4.0)
 			_notify_hit(from_killer)

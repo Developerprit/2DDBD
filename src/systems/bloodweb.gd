@@ -20,12 +20,9 @@ enum Kind { PERK, ITEM, ADDON, BONUS }
 ## How many nodes a tier contains. Later tiers are wider.
 const TIER_SIZES := [4, 5, 6, 6, 7, 8]
 
-## Every character starts with its signature perk plus one shared pair, so a
-## fresh save is not completely naked.
-const STARTER_PERKS := {
-	"survivor": ["bond", "resilience"],
-	"killer": ["brutal_strength", "enduring"],
-}
+## Tier at which a character's three exclusive perks become usable by every other
+## character on the same side ("teachables"). Until then they are private.
+const TEACHABLE_TIER := 60
 
 ## Bloodpoints handed out the first time the game is launched.
 const STARTER_BLOODPOINTS := 24000
@@ -97,12 +94,31 @@ static func _payload(rng: RandomNumberGenerator, char_id: String, is_killer: boo
 			return {"bp": rng.randi_range(1800, 5200)}
 
 
+## The three perks a character owns exclusively. Never handed out by the web --
+## they are that character's identity, granted directly on first use.
+static func exclusive_perks_for(char_id: String) -> Array:
+	var out: Array = []
+	for pid in GameConfig.perks.keys():
+		if str(GameConfig.perks[pid].get("owner", "")) == char_id:
+			out.append(pid)
+	out.sort()
+	return out
+
+
+## What the bloodweb may hand out: the SHARED pool of the side. Exclusives are
+## excluded because they are granted directly rather than bought, and other
+## characters' exclusives are excluded because those are not purchasable at all --
+## they unlock wholesale once their owner reaches TEACHABLE_TIER.
 static func perk_pool(is_killer: bool) -> Array:
 	var side := side_of(is_killer)
 	var out: Array = []
 	for pid in GameConfig.perks.keys():
-		if str(GameConfig.perks[pid].get("side", "")) == side:
-			out.append(pid)
+		var p: Dictionary = GameConfig.perks[pid]
+		if str(p.get("side", "")) != side:
+			continue
+		if str(p.get("owner", "")) != "":
+			continue
+		out.append(pid)
 	out.sort()
 	return out
 

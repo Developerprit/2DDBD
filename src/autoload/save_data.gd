@@ -3,6 +3,10 @@ extends Node
 
 const SAVE_PATH := "user://save.cfg"
 
+## Bumped whenever the perk rules change so an older save can be migrated.
+## 2 = the "three exclusive perks per character" rework.
+const PERK_VERSION := 2
+
 var wallet: Dictionary = {
 	"objective": 0,
 	"survival": 0,
@@ -69,6 +73,31 @@ func load_all() -> void:
 			var parsed: Variant = JSON.parse_string(raw)
 			if typeof(parsed) == TYPE_DICTIONARY:
 				bloodweb = parsed
+	var loaded_version := 0
+	if cfg.has_section_key("meta", "perk_version"):
+		loaded_version = int(cfg.get_value("meta", "perk_version", 0))
+	if loaded_version < PERK_VERSION:
+		if migrate_to_three_exclusives():
+			save_all()
+
+
+## The three-exclusives rework changed what a character may use: free shared perks
+## are gone and other characters' perks are locked behind TEACHABLE_TIER. Saves
+## written before it therefore get their unlock lists rebuilt from the new rules.
+## Tier and taken nodes are preserved, so nobody loses bloodweb progress.
+func migrate_to_three_exclusives() -> bool:
+	# Bail rather than blank everybody's perks if the data tables are not up yet.
+	if GameConfig.perks.is_empty():
+		return false
+	for cid in bloodweb.keys():
+		var st: Dictionary = bloodweb[cid]
+		if typeof(st) != TYPE_DICTIONARY:
+			continue
+		var arr: Array = []
+		for pid in Bloodweb.exclusive_perks_for(str(cid)):
+			arr.append("perk:" + pid)
+		st["unlocked"] = arr
+	return true
 
 
 func save_all() -> void:
@@ -83,6 +112,7 @@ func save_all() -> void:
 	for key in last_loadout.keys():
 		cfg.set_value("loadout", key, last_loadout[key])
 	cfg.set_value("bloodweb", "data", JSON.stringify(bloodweb))
+	cfg.set_value("meta", "perk_version", PERK_VERSION)
 	cfg.save(SAVE_PATH)
 
 
@@ -99,17 +129,14 @@ func web_state(char_id: String) -> Dictionary:
 
 ## Signatures are granted directly (not through grant_unlock) because that would
 ## call back into web_state() while it is still building the entry.
+##
+## A character starts with its own three exclusive perks and NOTHING else. Shared
+## perks are progression and must be bought on the bloodweb; other characters'
+## exclusives unlock wholesale once their owner reaches Bloodweb.TEACHABLE_TIER.
 func _grant_starters(char_id: String, st: Dictionary) -> void:
 	var arr: Array = st.get("unlocked", [])
-	if GameConfig.killers.has(char_id):
-		for pid in Bloodweb.STARTER_PERKS["killer"]:
-			arr.append("perk:" + pid)
-	else:
-		for pid in Bloodweb.STARTER_PERKS["survivor"]:
-			arr.append("perk:" + pid)
-		var personal := str(GameConfig.survivors.get(char_id, {}).get("personal_perk", ""))
-		if personal != "":
-			arr.append("perk:" + personal)
+	for pid in Bloodweb.exclusive_perks_for(char_id):
+		arr.append("perk:" + pid)
 	st["unlocked"] = arr
 
 
@@ -169,7 +196,23 @@ func unlocked_perk_ids(char_id: String) -> Array:
 	for key in web_state(char_id).get("unlocked", []):
 		var k := str(key)
 		if k.begins_with("perk:"):
-			out.append(k.substr(5))
+			var pid := k.substr(5)
+			if not out.has(pid):
+				out.append(pid)
+	# Teachables. Once a same-side character has taken their own web to
+	# TEACHABLE_TIER, their three exclusive perks become usable by this one even
+	# though they were never bought here.
+	var is_killer := GameConfig.killers.has(char_id)
+	for pid in GameConfig.perks.keys():
+		if out.has(pid):
+			continue
+		var owner := str(GameConfig.perks[pid].get("owner", ""))
+		if owner == "" or owner == char_id:
+			continue
+		if GameConfig.killers.has(owner) != is_killer:
+			continue
+		if web_tier(owner) >= Bloodweb.TEACHABLE_TIER:
+			out.append(pid)
 	return out
 
 

@@ -22,9 +22,13 @@ var _pulse := 0.0
 
 
 func _ready() -> void:
-	# Below the characters (0) but above the terrain (-50): the stain is on the
-	# floor, not on top of the killer.
-	z_index = -10
+	# Absolute z so the parent killer's layer never shifts it: the stain sits at 1,
+	# ABOVE the wall tiles (-50) and props (0) so it reads THROUGH buildings, but
+	# BELOW the characters (2) so bodies still occlude it. That is the whole point
+	# of the stain -- a survivor watching it sweep across the ground through a wall
+	# knows the killer is coming around the corner.
+	z_as_relative = false
+	z_index = 1
 	set_process(true)
 
 

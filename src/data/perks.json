@@ -2,194 +2,574 @@
   "bond": {
     "id": "bond",
     "side": "survivor",
-    "name": {"en": "Bond", "zh": "羁绊"},
-    "desc": {"en": "Reveal the aura of all other survivors within 24 m.", "zh": "显示 24 米内其他逃生者的气场。"},
+    "name": {
+      "en": "Bond",
+      "zh": "羁绊"
+    },
+    "desc": {
+      "en": "Reveal the aura of all other survivors within 24 m.",
+      "zh": "显示 24 米内其他逃生者的气场。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"aura_allies": 24.0}
+    "mods": {
+      "aura_allies": 24.0
+    },
+    "owner": "dwight"
   },
   "sprint_burst": {
     "id": "sprint_burst",
     "side": "survivor",
-    "name": {"en": "Sprint Burst", "zh": "冲刺爆发"},
-    "desc": {"en": "Start sprinting and gain 150% speed for 3 s. 40 s cooldown.", "zh": "起跑时获得 150% 移速，持续 3 秒。冷却 40 秒。"},
+    "name": {
+      "en": "Sprint Burst",
+      "zh": "冲刺爆发"
+    },
+    "desc": {
+      "en": "Start sprinting and gain 150% speed for 3 s. 40 s cooldown.",
+      "zh": "起跑时获得 150% 移速，持续 3 秒。冷却 40 秒。"
+    },
     "trigger": "ON_CHASE",
-    "mods": {"speed_mult": 1.5, "duration": 3.0, "cooldown": 40.0}
+    "mods": {
+      "speed_mult": 1.5,
+      "duration": 3.0,
+      "cooldown": 40.0
+    },
+    "owner": "meg"
   },
   "self_care": {
     "id": "self_care",
     "side": "survivor",
-    "name": {"en": "Self-Care", "zh": "自我治疗"},
-    "desc": {"en": "Heal yourself without a medkit, at 60% of the normal speed.", "zh": "无需医疗包即可自我治疗，速度为正常的 60%。"},
+    "name": {
+      "en": "Self-Care",
+      "zh": "自我治疗"
+    },
+    "desc": {
+      "en": "Heal yourself without a medkit, at 60% of the normal speed.",
+      "zh": "无需医疗包即可自我治疗，速度为正常的 60%。"
+    },
     "trigger": "ON_HEAL",
-    "mods": {"allow_self_heal": 1, "heal_speed": 0.6}
+    "mods": {
+      "allow_self_heal": 1,
+      "heal_speed": 0.6
+    },
+    "owner": "claudette"
   },
   "urban_evasion": {
     "id": "urban_evasion",
     "side": "survivor",
-    "name": {"en": "Urban Evasion", "zh": "都市潜行"},
-    "desc": {"en": "Crouch-move 45% faster.", "zh": "蹲伏移动速度提升 45%。"},
+    "name": {
+      "en": "Urban Evasion",
+      "zh": "都市潜行"
+    },
+    "desc": {
+      "en": "Crouch-move 45% faster.",
+      "zh": "蹲伏移动速度提升 45%。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"crouch_mult": 1.45}
+    "mods": {
+      "crouch_mult": 1.45
+    },
+    "owner": ""
   },
   "adrenaline": {
     "id": "adrenaline",
     "side": "survivor",
-    "name": {"en": "Adrenaline", "zh": "肾上腺素"},
-    "desc": {"en": "When the last generator is repaired, instantly heal and gain 150% speed for 5 s.", "zh": "最后一台发电机修复时立刻治愈，并获得 150% 移速 5 秒。"},
+    "name": {
+      "en": "Adrenaline",
+      "zh": "肾上腺素"
+    },
+    "desc": {
+      "en": "When the last generator is repaired, instantly heal and gain 150% speed for 5 s.",
+      "zh": "最后一台发电机修复时立刻治愈，并获得 150% 移速 5 秒。"
+    },
     "trigger": "ON_GENERATOR_PROGRESS",
-    "mods": {"speed_mult": 1.5, "duration": 5.0, "instant_heal": 1}
+    "mods": {
+      "speed_mult": 1.5,
+      "duration": 5.0,
+      "instant_heal": 1
+    },
+    "owner": "meg"
   },
   "dead_hard": {
     "id": "dead_hard",
     "side": "survivor",
-    "name": {"en": "Dead Hard", "zh": "硬撑"},
-    "desc": {"en": "While injured, sprinting grants a 1 s burst of invulnerability. 60 s cooldown.", "zh": "受伤状态下奔跑可获得 1 秒免伤窗口。冷却 60 秒。"},
+    "name": {
+      "en": "Dead Hard",
+      "zh": "硬撑"
+    },
+    "desc": {
+      "en": "While injured, sprinting grants a 1 s burst of invulnerability. 60 s cooldown.",
+      "zh": "受伤状态下奔跑可获得 1 秒免伤窗口。冷却 60 秒。"
+    },
     "trigger": "ON_INJURED",
-    "mods": {"invuln_time": 1.0, "cooldown": 60.0}
+    "mods": {
+      "invuln_time": 1.0,
+      "cooldown": 60.0
+    },
+    "owner": "meg"
   },
   "borrowed_time": {
     "id": "borrowed_time",
     "side": "survivor",
-    "name": {"en": "Borrowed Time", "zh": "借来的时间"},
-    "desc": {"en": "The survivor you unhook gains Endurance for 10 s.", "zh": "被你救下的逃生者获得 10 秒坚毅。"},
+    "name": {
+      "en": "Borrowed Time",
+      "zh": "借来的时间"
+    },
+    "desc": {
+      "en": "The survivor you unhook gains Endurance for 10 s.",
+      "zh": "被你救下的逃生者获得 10 秒坚毅。"
+    },
     "trigger": "ON_UNHOOK",
-    "mods": {"endurance": 10.0}
+    "mods": {
+      "endurance": 10.0
+    },
+    "owner": ""
   },
   "lithe": {
     "id": "lithe",
     "side": "survivor",
-    "name": {"en": "Lithe", "zh": "轻盈"},
-    "desc": {"en": "After a fast vault, gain 150% speed for 3 s. 40 s cooldown.", "zh": "快速翻越后获得 150% 移速 3 秒。冷却 40 秒。"},
+    "name": {
+      "en": "Lithe",
+      "zh": "轻盈"
+    },
+    "desc": {
+      "en": "After a fast vault, gain 150% speed for 3 s. 40 s cooldown.",
+      "zh": "快速翻越后获得 150% 移速 3 秒。冷却 40 秒。"
+    },
     "trigger": "ON_VAULT",
-    "mods": {"lithe_speed": 1.5, "lithe_time": 3.0, "lithe_cd": 40.0}
+    "mods": {
+      "lithe_speed": 1.5,
+      "lithe_time": 3.0,
+      "lithe_cd": 40.0
+    },
+    "owner": "feng_min"
   },
   "resilience": {
     "id": "resilience",
     "side": "survivor",
-    "name": {"en": "Resilience", "zh": "韧性"},
-    "desc": {"en": "While injured, all interactions are 15% faster.", "zh": "受伤状态下所有交互速度提升 15%。"},
+    "name": {
+      "en": "Resilience",
+      "zh": "韧性"
+    },
+    "desc": {
+      "en": "While injured, all interactions are 15% faster.",
+      "zh": "受伤状态下所有交互速度提升 15%。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"interact_mult": 1.15}
+    "mods": {
+      "interact_mult": 1.15
+    },
+    "owner": "dwight"
   },
   "spine_chill": {
     "id": "spine_chill",
     "side": "survivor",
-    "name": {"en": "Spine Chill", "zh": "脊背发凉"},
-    "desc": {"en": "Warn yourself when the killer is looking in your direction.", "zh": "当杀手朝你的方向注视时给出预警。"},
+    "name": {
+      "en": "Spine Chill",
+      "zh": "脊背发凉"
+    },
+    "desc": {
+      "en": "Warn yourself when the killer is looking in your direction.",
+      "zh": "当杀手朝你的方向注视时给出预警。"
+    },
     "trigger": "ON_KILLER_NEAR",
-    "mods": {"warn_radius": 36.0}
+    "mods": {
+      "warn_radius": 36.0
+    },
+    "owner": ""
   },
   "kindred": {
     "id": "kindred",
     "side": "survivor",
-    "name": {"en": "Kindred", "zh": "血脉相连"},
-    "desc": {"en": "While someone is hooked, reveal the killer and all survivors.", "zh": "有人被挂钩时，显示杀手与所有逃生者的气场。"},
+    "name": {
+      "en": "Kindred",
+      "zh": "血脉相连"
+    },
+    "desc": {
+      "en": "While someone is hooked, reveal the killer and all survivors.",
+      "zh": "有人被挂钩时，显示杀手与所有逃生者的气场。"
+    },
     "trigger": "ON_HOOKED",
-    "mods": {"aura_all": 1}
+    "mods": {
+      "aura_all": 1
+    },
+    "owner": "dwight"
   },
   "botany": {
     "id": "botany",
     "side": "survivor",
-    "name": {"en": "Botany of Knowledge", "zh": "植物学知识"},
-    "desc": {"en": "Healing yourself or others is 33% faster.", "zh": "治疗自己或他人的速度提升 33%。"},
+    "name": {
+      "en": "Botany of Knowledge",
+      "zh": "植物学知识"
+    },
+    "desc": {
+      "en": "Healing yourself or others is 33% faster.",
+      "zh": "治疗自己或他人的速度提升 33%。"
+    },
     "trigger": "ON_HEAL",
-    "mods": {"heal_speed": 1.33}
+    "mods": {
+      "heal_speed": 1.33
+    },
+    "owner": "claudette"
   },
   "saboteur": {
     "id": "saboteur",
     "side": "survivor",
-    "name": {"en": "Saboteur", "zh": "破坏者"},
-    "desc": {"en": "Dismantle bear traps twice as fast and take 50% less time to escape them.", "zh": "拆除捕兽夹速度翻倍，挣脱时间减少 50%。"},
+    "name": {
+      "en": "Saboteur",
+      "zh": "破坏者"
+    },
+    "desc": {
+      "en": "Dismantle bear traps twice as fast and take 50% less time to escape them.",
+      "zh": "拆除捕兽夹速度翻倍，挣脱时间减少 50%。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"trap_speed": 2.0, "trap_escape_mult": 0.5}
+    "mods": {
+      "trap_speed": 2.0,
+      "trap_escape_mult": 0.5
+    },
+    "owner": "jake"
   },
   "technician": {
     "id": "technician",
     "side": "survivor",
-    "name": {"en": "Technician", "zh": "技术员"},
-    "desc": {"en": "A failed generator skill check only explodes 25% of the time, and never reveals your location.", "zh": "发电机技能判定失败时仅有 25% 概率爆炸，且绝不会暴露你的位置。"},
+    "name": {
+      "en": "Technician",
+      "zh": "技术员"
+    },
+    "desc": {
+      "en": "A failed generator skill check only explodes 25% of the time, and never reveals your location.",
+      "zh": "发电机技能判定失败时仅有 25% 概率爆炸，且绝不会暴露你的位置。"
+    },
     "trigger": "ON_SKILLCHECK_FAIL",
-    "mods": {"gen_scream_mult": 0.25}
+    "mods": {
+      "gen_scream_mult": 0.25
+    },
+    "owner": "feng_min"
   },
   "alert": {
     "id": "alert",
     "side": "survivor",
-    "name": {"en": "Alert", "zh": "警觉"},
-    "desc": {"en": "When the killer breaks a pallet or a wall, reveal their aura to you (and nearby survivors) for 6 s.", "zh": "当杀手破坏木板或墙体时，你与附近逃生者会看到其气场，持续 6 秒。"},
+    "name": {
+      "en": "Alert",
+      "zh": "警觉"
+    },
+    "desc": {
+      "en": "When the killer breaks a pallet or a wall, reveal their aura to you (and nearby survivors) for 6 s.",
+      "zh": "当杀手破坏木板或墙体时，你与附近逃生者会看到其气场，持续 6 秒。"
+    },
     "trigger": "ON_KILLER_BREAK",
-    "mods": {"alert_reveal_time": 6.0, "alert_radius": 36.0}
+    "mods": {
+      "alert_reveal_time": 6.0,
+      "alert_radius": 36.0
+    },
+    "owner": "feng_min"
   },
-
   "brutal_strength": {
     "id": "brutal_strength",
     "side": "killer",
-    "name": {"en": "Brutal Strength", "zh": "蛮力"},
-    "desc": {"en": "Break pallets 20% faster.", "zh": "破坏木板速度提升 20%。"},
+    "name": {
+      "en": "Brutal Strength",
+      "zh": "蛮力"
+    },
+    "desc": {
+      "en": "Break pallets 20% faster.",
+      "zh": "破坏木板速度提升 20%。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"pallet_break_mult": 1.2}
+    "mods": {
+      "pallet_break_mult": 1.2
+    },
+    "owner": "trapper"
   },
   "enduring": {
     "id": "enduring",
     "side": "killer",
-    "name": {"en": "Enduring", "zh": "坚忍"},
-    "desc": {"en": "Pallet stuns last 50% less time.", "zh": "被木板击晕的时间减少 50%。"},
+    "name": {
+      "en": "Enduring",
+      "zh": "坚忍"
+    },
+    "desc": {
+      "en": "Pallet stuns last 50% less time.",
+      "zh": "被木板击晕的时间减少 50%。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"stun_resist": 0.5}
+    "mods": {
+      "stun_resist": 0.5
+    },
+    "owner": ""
   },
   "whispers": {
     "id": "whispers",
     "side": "killer",
-    "name": {"en": "Whispers", "zh": "低语"},
-    "desc": {"en": "You can sense when a survivor is within 20 m.", "zh": "20 米内有逃生者时你会有所察觉。"},
+    "name": {
+      "en": "Whispers",
+      "zh": "低语"
+    },
+    "desc": {
+      "en": "You can sense when a survivor is within 20 m.",
+      "zh": "20 米内有逃生者时你会有所察觉。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"detect_radius": 20.0}
+    "mods": {
+      "detect_radius": 20.0
+    },
+    "owner": ""
   },
   "bitter_murmur": {
     "id": "bitter_murmur",
     "side": "killer",
-    "name": {"en": "Bitter Murmur", "zh": "苦涩低语"},
-    "desc": {"en": "Every time a generator is finished, reveal survivors near it for 5 s.", "zh": "每台发电机完成时，显示附近逃生者 5 秒。"},
+    "name": {
+      "en": "Bitter Murmur",
+      "zh": "苦涩低语"
+    },
+    "desc": {
+      "en": "Every time a generator is finished, reveal survivors near it for 5 s.",
+      "zh": "每台发电机完成时，显示附近逃生者 5 秒。"
+    },
     "trigger": "ON_GENERATOR_PROGRESS",
-    "mods": {"reveal_time": 5.0, "radius": 32.0}
+    "mods": {
+      "reveal_time": 5.0,
+      "radius": 32.0
+    },
+    "owner": ""
   },
   "no_one_escapes_death": {
     "id": "no_one_escapes_death",
     "side": "killer",
-    "name": {"en": "No One Escapes Death", "zh": "无人逃脱死亡"},
-    "desc": {"en": "Once all generators are powered, gain 4% speed and expose survivors.", "zh": "所有发电机通电后，移速 +4% 且逃生者陷入暴露状态。"},
+    "name": {
+      "en": "No One Escapes Death",
+      "zh": "无人逃脱死亡"
+    },
+    "desc": {
+      "en": "Once all generators are powered, gain 4% speed and expose survivors.",
+      "zh": "所有发电机通电后，移速 +4% 且逃生者陷入暴露状态。"
+    },
     "trigger": "ON_GENERATOR_PROGRESS",
-    "mods": {"speed_mult": 1.04, "exposed": 1}
+    "mods": {
+      "speed_mult": 1.04,
+      "exposed": 1
+    },
+    "owner": ""
   },
   "unrelenting": {
     "id": "unrelenting",
     "side": "killer",
-    "name": {"en": "Unrelenting", "zh": "无情"},
-    "desc": {"en": "Missed attacks recover 30% faster.", "zh": "攻击落空后的后摇减少 30%。"},
+    "name": {
+      "en": "Unrelenting",
+      "zh": "无情"
+    },
+    "desc": {
+      "en": "Missed attacks recover 30% faster.",
+      "zh": "攻击落空后的后摇减少 30%。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"miss_recover": 0.7}
+    "mods": {
+      "miss_recover": 0.7
+    },
+    "owner": ""
   },
   "deerstalker": {
     "id": "deerstalker",
     "side": "killer",
-    "name": {"en": "Deerstalker", "zh": "猎鹿人"},
-    "desc": {"en": "Reveal the aura of downed survivors.", "zh": "显示倒地逃生者的气场。"},
+    "name": {
+      "en": "Deerstalker",
+      "zh": "猎鹿人"
+    },
+    "desc": {
+      "en": "Reveal the aura of downed survivors.",
+      "zh": "显示倒地逃生者的气场。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"aura_down": 1}
+    "mods": {
+      "aura_down": 1
+    },
+    "owner": ""
   },
   "bloodhound": {
     "id": "bloodhound",
     "side": "killer",
-    "name": {"en": "Bloodhound", "zh": "猎犬"},
-    "desc": {"en": "Blood trails last noticeably longer and glow brighter.", "zh": "血迹留存时间更长，且更显眼。"},
+    "name": {
+      "en": "Bloodhound",
+      "zh": "猎犬"
+    },
+    "desc": {
+      "en": "Blood trails last noticeably longer and glow brighter.",
+      "zh": "血迹留存时间更长，且更显眼。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"blood_life_mult": 2.0}
+    "mods": {
+      "blood_life_mult": 2.0
+    },
+    "owner": "wraith"
   },
   "sloppy_butcher": {
     "id": "sloppy_butcher",
     "side": "killer",
-    "name": {"en": "Sloppy Butcher", "zh": "邋遢屠夫"},
-    "desc": {"en": "Survivors you injure heal 25% slower.", "zh": "被你击伤的逃生者治疗速度降低 25%。"},
+    "name": {
+      "en": "Sloppy Butcher",
+      "zh": "邋遢屠夫"
+    },
+    "desc": {
+      "en": "Survivors you injure heal 25% slower.",
+      "zh": "被你击伤的逃生者治疗速度降低 25%。"
+    },
     "trigger": "PASSIVE",
-    "mods": {"heal_slow": 0.75}
+    "mods": {
+      "heal_slow": 0.75
+    },
+    "owner": ""
+  },
+  "empathy": {
+    "id": "empathy",
+    "side": "survivor",
+    "owner": "claudette",
+    "name": {
+      "en": "Empathy",
+      "zh": "共情"
+    },
+    "desc": {
+      "en": "Reveal the aura of every other survivor within 32 m.",
+      "zh": "显示 32 米内其他逃生者的气场。"
+    },
+    "trigger": "PASSIVE",
+    "mods": {
+      "aura_allies": 32.0
+    }
+  },
+  "iron_will": {
+    "id": "iron_will",
+    "side": "survivor",
+    "owner": "jake",
+    "name": {
+      "en": "Iron Will",
+      "zh": "钢铁意志"
+    },
+    "desc": {
+      "en": "Move 15% faster while crouching.",
+      "zh": "蹲伏移动速度提升 15%。"
+    },
+    "trigger": "PASSIVE",
+    "mods": {
+      "crouch_mult": 1.15
+    }
+  },
+  "calm_spirit": {
+    "id": "calm_spirit",
+    "side": "survivor",
+    "owner": "jake",
+    "name": {
+      "en": "Calm Spirit",
+      "zh": "静心"
+    },
+    "desc": {
+      "en": "Interact 10% faster.",
+      "zh": "交互速度提升 10%。"
+    },
+    "trigger": "PASSIVE",
+    "mods": {
+      "interact_mult": 1.1
+    }
+  },
+  "resurgence": {
+    "id": "resurgence",
+    "side": "survivor",
+    "owner": "",
+    "name": {
+      "en": "Resurgence",
+      "zh": "复苏"
+    },
+    "desc": {
+      "en": "Heal yourself and others 15% faster.",
+      "zh": "治疗自己与他人的速度提升 15%。"
+    },
+    "trigger": "ON_HEAL",
+    "mods": {
+      "heal_speed": 1.15
+    }
+  },
+  "tenacity": {
+    "id": "tenacity",
+    "side": "survivor",
+    "owner": "",
+    "name": {
+      "en": "Tenacity",
+      "zh": "坚韧"
+    },
+    "desc": {
+      "en": "Reveal the aura of allies within 18 m.",
+      "zh": "显示 18 米内队友的气场。"
+    },
+    "trigger": "PASSIVE",
+    "mods": {
+      "aura_allies": 18.0
+    }
+  },
+  "agitation": {
+    "id": "agitation",
+    "side": "killer",
+    "owner": "trapper",
+    "name": {
+      "en": "Agitation",
+      "zh": "躁动"
+    },
+    "desc": {
+      "en": "Recover from a missed swing 15% faster.",
+      "zh": "挥空后的恢复速度提升 15%。"
+    },
+    "trigger": "PASSIVE",
+    "mods": {
+      "miss_recover": 0.85
+    }
+  },
+  "unnerving_presence": {
+    "id": "unnerving_presence",
+    "side": "killer",
+    "owner": "trapper",
+    "name": {
+      "en": "Unnerving Presence",
+      "zh": "惊惶威压"
+    },
+    "desc": {
+      "en": "Sense survivors within 12 m.",
+      "zh": "感知 12 米内的逃生者。"
+    },
+    "trigger": "PASSIVE",
+    "mods": {
+      "detect_radius": 12.0
+    }
+  },
+  "shadowborn": {
+    "id": "shadowborn",
+    "side": "killer",
+    "owner": "wraith",
+    "name": {
+      "en": "Shadowborn",
+      "zh": "暗影之裔"
+    },
+    "desc": {
+      "en": "Move 3% faster.",
+      "zh": "移动速度提升 3%。"
+    },
+    "trigger": "PASSIVE",
+    "mods": {
+      "speed_mult": 1.03
+    }
+  },
+  "predator": {
+    "id": "predator",
+    "side": "killer",
+    "owner": "wraith",
+    "name": {
+      "en": "Predator",
+      "zh": "掠食者"
+    },
+    "desc": {
+      "en": "Blood trails linger 50% longer.",
+      "zh": "血迹残留时间延长 50%。"
+    },
+    "trigger": "PASSIVE",
+    "mods": {
+      "blood_life_mult": 1.5
+    }
   }
 }

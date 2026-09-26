@@ -41,10 +41,21 @@ var _unstick_count := 0
 static var scratch_follows := 0
 ## Debug counter: generators the bot has damaged.
 static var gens_kicked := 0
+## Seconds until the Wraith may ring the bell again (see the bell block in think()).
+var _bell_wait := 0.0
+
 ## Debug counter: how often the killer cut across a loop instead of tracing it.
 static var loop_cuts := 0
+## Debug counters for the Wraith bell. `bell_rings` counts every channel started and
+## `bell_cloaks` how many of those were re-cloaks, so a soak can prove the bot is no
+## longer spamming the bell.
+static var bell_rings := 0
+static var bell_cloaks := 0
 static var last_mode := 0
 
+## Minimum seconds between two bell decisions. Long enough that cloaking and
+## uncloaking can never trade places back and forth across a chase.
+const BELL_COOLDOWN := 9.0
 const REPATH_INTERVAL := 0.7
 ## Swing trigger distance. Sits just inside the attack's own reach (2.9 m) so the
 ## windup cannot be walked out of before the hit frame.
@@ -61,6 +72,23 @@ func dispose() -> void:
 	k = null
 	path.clear()
 	target = null
+
+
+## True when any living survivor is within `radius` px. The bell logic uses it so
+## the Wraith never re-cloaks right in front of somebody.
+func _any_survivor_within(radius: float) -> bool:
+	var mc := MatchController.instance
+	if mc == null:
+		return false
+	for s in mc.survivors:
+		var sv := s as Survivor
+		if sv == null or not is_instance_valid(sv):
+			continue
+		if sv.health == Enums.Health.DEAD or sv.health == Enums.Health.ESCAPED:
+			continue
+		if k.global_position.distance_to(sv.global_position) <= radius:
+			return true
+	return false
 
 
 func think(delta: float) -> void:
@@ -108,17 +136,32 @@ func think(delta: float) -> void:
 			scratch_follows += 1
 		last_mode = mode
 
-	# Wraith: stay cloaked (fast + silent) while closing the gap, then ring the
-	# bell to materialise only once the survivor is close enough that the 3 s
-	# channel can actually pay off in a swing. Ringing from across the map would
-	# just telegraph the reveal for nothing.
+	# Wraith bell. The old version rang whenever `mode != CHASE`, so every flicker
+	# between PATROL and SCRATCH re-cloaked and the bot spent the match ringing
+	# instead of playing. Two rules fix that:
+	#   * cloak again only when the map is genuinely quiet (PATROL, nobody near);
+	#   * uncloak only with a victim at mid range AND line of sight, so the 3 s
+	#     channel finishes roughly as the chase closes instead of telegraphing it.
+	# A cooldown then guarantees the two rules cannot ping-pong.
 	if k.char_id == "wraith":
-		var close := target != null and is_instance_valid(target) \
-				and k.global_position.distance_to(target.global_position) < GameConfig.TILE * 4.5
-		if mode == Mode.CHASE and close and k.is_cloaked():
-			k.request_power()
-		elif mode != Mode.CHASE and not k.is_cloaked():
-			k.request_power()
+		if _bell_wait > 0.0:
+			_bell_wait -= delta
+		if _bell_wait <= 0.0 and not k._bell_active and k.machine.current_name == "move":
+			if k.is_cloaked():
+				var reach_ok := target != null and is_instance_valid(target) \
+						and k.global_position.distance_to(target.global_position) \
+								< GameConfig.TILE * 8.0 \
+						and not k.blocked_by_wall(k.global_position, target.global_position)
+				if mode == Mode.CHASE and reach_ok:
+					k.request_power()
+					bell_rings += 1
+					_bell_wait = BELL_COOLDOWN
+			elif mode == Mode.PATROL and seen == null \
+					and not _any_survivor_within(GameConfig.TILE * 14.0):
+				k.request_power()
+				bell_rings += 1
+				bell_cloaks += 1
+				_bell_wait = BELL_COOLDOWN
 
 	match mode:
 		Mode.CHASE:
