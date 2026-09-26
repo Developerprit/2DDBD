@@ -24,11 +24,6 @@ var stats: Dictionary = {
 }
 var last_loadout: Dictionary = {}
 
-## The side (survivor / killer) is chosen once, on the first trial, and locked from
-## then on. Persisted here so a restart cannot reopen the choice.
-var role_locked := false
-var locked_role: int = Enums.Team.SURVIVOR
-
 ## Bloodweb progress: char_id -> {"tier": int, "taken": [node_id], "unlocked": ["perk:x"]}.
 ## Only ids are stored -- the node graph itself is regenerated from a seed, so a
 ## save file stays tiny and every machine sees an identical web.
@@ -72,11 +67,9 @@ func load_all() -> void:
 		for key in ["selected_killer", "selected_survivor", "selected_map", "player_role"]:
 			if cfg.has_section_key("loadout", key):
 				last_loadout[key] = cfg.get_value("loadout", key)
-		role_locked = bool(cfg.get_value("loadout", "role_locked", false))
-		locked_role = int(cfg.get_value("loadout", "locked_role", Enums.Team.SURVIVOR))
-		if role_locked:
-			# Re-apply the locked side, or a fresh launch would hand the choice back.
-			GameConfig.player_role = locked_role
+		# NOTE: an earlier build locked the side after the first trial. That is gone;
+		# old saves simply stop being read. The chosen side lives in GameConfig and is
+		# freely changeable from the Side page in the main menu.
 	if cfg.has_section_key("bloodweb", "data"):
 		var raw := str(cfg.get_value("bloodweb", "data", ""))
 		if raw != "":
@@ -121,8 +114,6 @@ func save_all() -> void:
 		cfg.set_value("stats", key, stats[key])
 	for key in last_loadout.keys():
 		cfg.set_value("loadout", key, last_loadout[key])
-	cfg.set_value("loadout", "role_locked", role_locked)
-	cfg.set_value("loadout", "locked_role", locked_role)
 	cfg.set_value("bloodweb", "data", JSON.stringify(bloodweb))
 	cfg.set_value("meta", "perk_version", PERK_VERSION)
 	cfg.save(SAVE_PATH)

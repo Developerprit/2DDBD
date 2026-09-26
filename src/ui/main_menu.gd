@@ -3,7 +3,9 @@ extends CanvasLayer
 ## all in one screen that swaps between Panels. Singletons keep the state
 ## (GameConfig / SaveData) so nothing is lost on switching tabs.
 
-enum Page { MAIN, LOADOUT, SETTINGS, MULTIPLAYER, TUTORIAL, CREDITS, BLOODWEB }
+## NOTE: the order here MUST match the order the pages are added to page_root in
+## _build(), because _show_page() addresses them by index.
+enum Page { MAIN, LOADOUT, SETTINGS, MULTIPLAYER, TUTORIAL, CREDITS, BLOODWEB, SIDE }
 
 var root: Control
 var bg: Control
@@ -40,6 +42,14 @@ func _ready() -> void:
 	EventBus.net_peer_left.connect(func(_id: int) -> void: _refresh_mp_status())
 	GameConfig.player_role = GameConfig.player_role
 	_show_page(Page.MAIN)
+
+	# Debug hook for headless verification: open a specific page straight away.
+	#   Game.exe -- --menu-side
+	for arg in OS.get_cmdline_user_args():
+		if arg == "--menu-side":
+			_show_page(Page.SIDE)
+			print("[menu] Side page opened; pages=%d visible_index=%d"
+					% [page_root.get_child_count(), current])
 
 
 func _process(delta: float) -> void:
@@ -95,6 +105,7 @@ func _build() -> void:
 	nav_box.add_theme_constant_override("separation", 4)
 	left.add_child(nav_box)
 	_add_nav_button(Locale.t("menu.play"), func() -> void: _start_match())
+	_add_nav_button(Locale.t("menu.side"), func() -> void: _show_page(Page.SIDE))
 	_add_nav_button(Locale.t("menu.loadout"), func() -> void: _show_page(Page.LOADOUT))
 	_add_nav_button(Locale.t("menu.bloodweb"), func() -> void: _show_page(Page.BLOODWEB))
 	_add_nav_button(Locale.t("menu.multiplayer"), func() -> void: _show_page(Page.MULTIPLAYER))
@@ -116,6 +127,7 @@ func _build() -> void:
 	_build_tutorial_page()
 	_build_credits_page()
 	_build_bloodweb_page()
+	_build_side_page()
 
 
 func _spacer(h: int) -> Control:
@@ -175,17 +187,27 @@ func _panel(title: String) -> VBoxContainer:
 
 
 func _show_page(p: int) -> void:
+	# Pages are addressed by index, so a mismatch between the Page enum and the
+	# order pages were added to page_root would silently show the WRONG tab. Make it
+	# loud instead of silent.
+	if p < 0 or p >= page_root.get_child_count():
+		push_error("_show_page(%d) out of range (%d pages) -- Page enum and the build order are out of sync"
+				% [p, page_root.get_child_count()])
+		return
 	current = p
 	for child in page_root.get_children():
 		child.visible = false
-	if p < page_root.get_child_count():
-		page_root.get_child(p).visible = true
+	page_root.get_child(p).visible = true
 	if p == Page.LOADOUT:
 		_refresh_loadout()
 	if p == Page.BLOODWEB:
 		_refresh_bloodweb()
 	if p == Page.MULTIPLAYER:
 		_refresh_mp_status()
+	if p == Page.SIDE:
+		_refresh_side()
+	if p == Page.MAIN:
+		_update_role_hint()
 
 
 # ---------------------------------------------------------------------------
@@ -223,47 +245,34 @@ func _draw_bg() -> void:
 # Main page
 # ---------------------------------------------------------------------------
 var _main_page: VBoxContainer
-## The survivor / killer toggle buttons, so the lock state can disable them.
-var _role_buttons: Array = []
+## Side page widgets: the two side cards and the "now playing" readout.
+var _side_buttons: Array = []
+var _side_info: Label
 
 
 func _build_main_page() -> void:
 	_main_page = _panel(Locale.t("menu.play"))
 
-	var role_row := HFlowContainer.new()
-	role_row.add_theme_constant_override("h_separation", 8)
-	role_row.add_theme_constant_override("v_separation", 6)
+	# The side is picked on its OWN page (nav entry "Side"), so the Play page only
+	# reports the current pick and offers a shortcut to that page. It used to be a
+	# pair of inline buttons, and for one build a permanent lock -- both are gone.
+	var role_row := HBoxContainer.new()
+	role_row.add_theme_constant_override("separation", 10)
 	_main_page.add_child(role_row)
-
-	var surv_btn := Button.new()
-	surv_btn.text = Locale.t("loadout.role.survivor")
-	surv_btn.custom_minimum_size = Vector2(130, 30)
-	surv_btn.pressed.connect(func() -> void:
-		if SaveData.role_locked:
-			return
-		GameConfig.player_role = Enums.Team.SURVIVOR
-		AudioDirector.play("ui_click", -8.0)
-		_refresh_loadout())
-	role_row.add_child(surv_btn)
-	_role_buttons.append(surv_btn)
-
-	var kill_btn := Button.new()
-	kill_btn.text = Locale.t("loadout.role.killer")
-	kill_btn.custom_minimum_size = Vector2(130, 30)
-	kill_btn.pressed.connect(func() -> void:
-		if SaveData.role_locked:
-			return
-		GameConfig.player_role = Enums.Team.KILLER
-		AudioDirector.play("ui_click", -8.0)
-		_refresh_loadout())
-	role_row.add_child(kill_btn)
-	_role_buttons.append(kill_btn)
 
 	var hint := UITheme.dim("", 10)
 	hint.name = "RoleHint"
-	_main_page.add_child(hint)
+	role_row.add_child(hint)
 	_main_page.set_meta("role_hint", hint)
-	_update_role_hint()
+
+	var pick := Button.new()
+	pick.text = Locale.t("side.pick")
+	pick.custom_minimum_size = Vector2(130, 28)
+	pick.add_theme_font_size_override("font_size", 11)
+	pick.pressed.connect(func() -> void:
+		AudioDirector.play("ui_click", -8.0)
+		_show_page(Page.SIDE))
+	role_row.add_child(pick)
 
 	_main_page.add_child(_spacer(10))
 
@@ -288,39 +297,107 @@ func _lore_text() -> String:
 	return "The fog has swallowed this place, and the Entity is hungry.\nFive generators. Two gates. One hook.\nWill you survive the fog, or become part of it?"
 
 
+## Display name of the character currently selected for the chosen side.
+func _current_char_name() -> String:
+	if GameConfig.player_role == Enums.Team.SURVIVOR:
+		return Locale.t(str(GameConfig.survivors.get(GameConfig.selected_survivor,
+				{}).get("name_key", "char.dwight")))
+	return Locale.t(str(GameConfig.killers.get(GameConfig.selected_killer,
+			{}).get("name_key", "char.trapper")))
+
+
 func _update_role_hint() -> void:
 	var hint := _main_page.get_meta("role_hint") as Label
 	if hint == null:
 		return
-	var who := ""
-	if GameConfig.player_role == Enums.Team.SURVIVOR:
-		who = Locale.t(str(GameConfig.survivors.get(GameConfig.selected_survivor,
-				{}).get("name_key", "char.dwight")))
-	else:
-		who = Locale.t(str(GameConfig.killers.get(GameConfig.selected_killer,
-				{}).get("name_key", "char.trapper")))
-	# The side is chosen once, on the first trial, then locked.
-	var locked := SaveData.role_locked
-	for b in _role_buttons:
-		var btn := b as Button
-		if btn != null and is_instance_valid(btn):
-			btn.disabled = locked
-	if locked:
-		hint.text = "%s: %s  ·  %s" % [Locale.t("loadout.character"), who,
-				Locale.t("loadout.role.locked")]
-	else:
-		hint.text = "%s: %s" % [Locale.t("loadout.character"), who]
+	var side := Locale.t("loadout.role.survivor") if GameConfig.player_role == Enums.Team.SURVIVOR \
+			else Locale.t("loadout.role.killer")
+	hint.text = "%s: %s  ·  %s" % [Locale.t("loadout.role"), side, _current_char_name()]
+
+
+# ---------------------------------------------------------------------------
+# Side page -- the survivor / killer picker, on its own tab
+# ---------------------------------------------------------------------------
+var _side_page: VBoxContainer
+
+
+func _build_side_page() -> void:
+	_side_page = _panel(Locale.t("side.title"))
+	_side_page.add_theme_constant_override("separation", 8)
+
+	var hint := UITheme.dim(Locale.t("side.hint"), 10)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(380, 0)
+	_side_page.add_child(hint)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	_side_page.add_child(row)
+
+	for team in [Enums.Team.SURVIVOR, Enums.Team.KILLER]:
+		var card := Button.new()
+		card.custom_minimum_size = Vector2(180, 92)
+		card.add_theme_font_size_override("font_size", 12)
+		card.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		card.text = "%s\n\n%s" % [
+				Locale.t("loadout.role.survivor" if team == Enums.Team.SURVIVOR
+						else "loadout.role.killer"),
+				Locale.t("side.survivor.desc" if team == Enums.Team.SURVIVOR
+						else "side.killer.desc")]
+		card.set_meta("team", team)
+		card.pressed.connect(func() -> void:
+			AudioDirector.play("ui_click", -8.0)
+			GameConfig.player_role = team
+			_refresh_side()
+			# The loadout lists are side-dependent, so keep them in step.
+			_refresh_loadout()
+			_update_role_hint())
+		row.add_child(card)
+		_side_buttons.append(card)
+
+	_side_page.add_child(_spacer(6))
+	_side_info = UITheme.dim("", 11)
+	_side_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_side_info.custom_minimum_size = Vector2(380, 0)
+	_side_page.add_child(_side_info)
+	_refresh_side()
+
+
+func _refresh_side() -> void:
+	var p := UITheme.palette()
+	for b in _side_buttons:
+		var card := b as Button
+		if card == null or not is_instance_valid(card):
+			continue
+		var team := int(card.get_meta("team", -1))
+		var on := team == GameConfig.player_role
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(str(p["accent_soft"])) if on else Color(str(p["panel_alt"]))
+		sb.border_color = Color(str(p["gold"])) if on else Color(str(p["line"]))
+		sb.set_border_width_all(2 if on else 1)
+		sb.content_margin_left = 8
+		sb.content_margin_right = 8
+		sb.content_margin_top = 6
+		sb.content_margin_bottom = 6
+		card.add_theme_stylebox_override("normal", sb)
+		card.add_theme_stylebox_override("hover", sb)
+		card.add_theme_color_override("font_color",
+				Color(str(p["gold"])) if on else Color(str(p["text_dim"])))
+	if _side_info != null and is_instance_valid(_side_info):
+		var side := Locale.t("loadout.role.survivor") if GameConfig.player_role == Enums.Team.SURVIVOR \
+				else Locale.t("loadout.role.killer")
+		_side_info.text = "%s: %s  ·  %s: %s   (%s)" % [
+				Locale.t("loadout.role"), side,
+				Locale.t("loadout.character"), _current_char_name(),
+				Locale.t("side.switchable")]
 
 
 func _start_match() -> void:
 	AudioDirector.play("ui_click", -4.0)
-	# The first trial locks the side in. Progression is per-camp, so letting a save
-	# hop between survivor and killer afterwards would let one side's bloodweb pay
-	# for the other's perks.
-	if not SaveData.role_locked:
-		SaveData.role_locked = true
-		SaveData.locked_role = GameConfig.player_role
-	SaveData.last_loadout["player_role"] = GameConfig.player_role
+	# Nothing about the side is persisted: it is chosen freely on the Side page and
+	# defaults back to survivor on the next launch. An earlier build locked it after
+	# the first trial, which was both wrong and impossible to undo from inside the
+	# game -- so there is deliberately no stored state left to get stuck on.
 	SaveData.save_all()
 	GameConfig.set_meta("pending_seed", randi())
 	SceneRouter.goto_match()
