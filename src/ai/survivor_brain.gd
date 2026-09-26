@@ -610,15 +610,16 @@ func _follow_path(delta: float) -> void:
 			sep += (s.global_position - other.global_position) / d
 	s.move_input = (dir + sep * 0.6).normalized()
 
-	# Gait: sprint unless we want to be quiet near the killer.
+	# Gait: run by default; drop to a walk only when we are deliberately trying
+	# to stay quiet near the killer. The old code rolled for a random CROUCH every
+	# repath (0.9 s), which made bots squat and stand for no reason -- crouch is now
+	# a real stealth choice the bot makes, not a dice roll.
 	var k := _killer()
 	var quiet := k != null and s.global_position.distance_to(k.global_position) < GameConfig.TILE * 18.0
-	if quiet and goal_kind != "flee":
-		s.gait = Enums.Gait.CROUCH if randf() < 0.4 else Enums.Gait.WALK
+	if goal_kind == "flee" or not quiet:
+		s.gait = Enums.Gait.RUN
 	else:
-		s.gait = Enums.Gait.RUN
-	if goal_kind == "flee":
-		s.gait = Enums.Gait.RUN
+		s.gait = Enums.Gait.WALK
 
 
 ## Vaults a window or dropped pallet that is directly between the survivor and

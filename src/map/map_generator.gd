@@ -61,7 +61,7 @@ const GENERATOR_CLEARANCE := 2
 const MIN_GENERATOR_DIST := 15.0
 const HOOK_COUNT := 12       ## the original uses 12; 25 was absurd
 const HOOK_MIN_DIST := 11.0
-const PALLET_MIN_DIST := 3.0
+const PALLET_MIN_DIST := 2.5
 
 ## How many floor variants the realm draws from. The tile atlas supplies six.
 const GROUND_VARIANTS := 6
@@ -147,7 +147,7 @@ static func generate(seed_value: int, map_id: String) -> Dictionary:
 
 	# Top up with outdoor pallets if the realm came out short, using genuine
 	# pinch points (a wall stub with open floor on both sides).
-	var want_pallets := int(cfg.get("pallet_count", 12))
+	var want_pallets := int(cfg.get("pallet_count", 16))
 	_add_outdoor_pallets(grid, n, rng, result["pallets"], want_pallets)
 
 	result["hooks"] = _place_hooks(grid, n, rng, result["generators"])
@@ -662,6 +662,10 @@ static func _cut_windows(g: PackedByteArray, n: int, rng: RandomNumberGenerator,
 						and at(g, n, cell.x + 1, cell.y) == F_FLOOR
 		if not ok:
 			continue
+		# Keep windows off the realm's corners: a window carved into the very edge
+		# tile reads as a hole in the border wall and can strand a vault in geometry.
+		if cell.x <= 3 or cell.y <= 3 or cell.x >= n - 4 or cell.y >= n - 4:
+			continue
 		windows.append({"pos": Utils.tile_center(cell), "dir": axis})
 		made += 1
 
@@ -914,8 +918,11 @@ static func _add_outdoor_pallets(g: PackedByteArray, n: int, rng: RandomNumberGe
 	if spots.size() >= want:
 		return
 	var cands: Array = []
-	for y in range(5, n - 5):
-		for x in range(5, n - 5):
+	# Keep pallets off the realm's corners and away from the border wall: a board
+	# jammed into a corner reads as a decoration, not a loop, and a board that
+	# touches the border can seal a dead-end pocket.
+	for y in range(8, n - 8):
+		for x in range(8, n - 8):
 			# The pallet goes on a walkable tile that is pinched between walls, so
 			# dropping it actually seals a passage. `dir` is the pallet's span, which
 			# is the axis of the walls flanking it.

@@ -45,6 +45,11 @@ var escaped := false
 # --- perks / items ---------------------------------------------------------
 var perks: Array = []
 var perk_cooldowns: Dictionary = {}
+## Transient speed buffs (Sprint Burst / Adrenaline / Lithe) keep their multiplier
+## here with an expiry timestamp instead of being granted by a one-shot timer that
+## _apply_passive_perks() would overwrite on the very next frame.
+var _perk_speed_mult := 1.0
+var _perk_speed_expire := 0
 var item_kind := ""
 var item_charges := 0.0
 var item_addons: Array = []
@@ -185,7 +190,7 @@ func _begin_vault(target: Node, end_pos: Vector2, duration: float) -> void:
 	var mc := MatchController.instance
 	if mc != null:
 		var cell := mc.nearest_open_cell(Utils.tile_of(end_pos))
-		if cell.x >= 0 and Utils.tile_center(cell).distance_to(end_pos) <= GameConfig.TILE * 3.0:
+		if cell.x >= 0 and Utils.tile_center(cell).distance_to(end_pos) <= GameConfig.TILE * 3.5:
 			var fixed := Utils.tile_center(cell)
 			var forward := end_pos - global_position
 			if forward.length() < 1.0 \
@@ -202,8 +207,12 @@ func _on_action_pressed() -> void:
 		var grade := skill.press()
 		_resolve_skill_check(grade)
 		return
-	if machine.current_name == "hooked":
-		pass
+	if machine.current_name == "locker":
+		# Pressing interact while hidden climbs back out of the locker. Without
+		# this branch a survivor could enter a locker but never leave it.
+		if hidden_locker != null and is_instance_valid(hidden_locker):
+			hidden_locker.on_interact_start(self)
+		return
 	if machine.current_name == "move":
 		_try_start_interaction()
 
@@ -727,22 +736,25 @@ func _update_perk_timers(delta: float) -> void:
 
 
 func _apply_passive_perks(delta: float) -> void:
-	# Urban Evasion: crouch faster.
+	# Transient speed buffs (Sprint Burst / Adrenaline / Lithe) now persist for
+	# their full duration. Previously this function reset speed_scale to 1.0 every
+	# frame, so a buff granted by a one-shot timer was overwritten before the next
+	# frame and the survivor never actually sped up.
+	var spd := 1.0
+	if Time.get_ticks_msec() < _perk_speed_expire:
+		spd = _perk_speed_mult
+	# Urban Evasion: faster crouch-walking (stacks with any transient buff).
 	if perk_mods.has("crouch_mult") and gait == Enums.Gait.CROUCH:
-		speed_scale = float(perk_mods["crouch_mult"])
-	else:
-		speed_scale = 1.0
-	# Resilience: faster interactions while injured.
-	if perk_mods.has("interact_mult") and health != Enums.Health.HEALTHY:
-		pass
+		spd *= float(perk_mods["crouch_mult"])
+	speed_scale = spd
+
 	# Adrenaline fires once when the last generator is done.
 	if perk_mods.has("instant_heal") and MatchController.instance != null \
 			and MatchController.instance.exit_powered and not perk_cooldowns.has("adrenaline_used"):
 		perk_cooldowns["adrenaline_used"] = 1.0
 		heal(1.0)
-		speed_scale = float(perk_mods.get("speed_mult", 1.5))
-		get_tree().create_timer(float(perk_mods.get("duration", 5.0))).timeout.connect(
-				func() -> void: speed_scale = 1.0)
+		_grant_perk_speed(float(perk_mods.get("speed_mult", 1.5)),
+				float(perk_mods.get("duration", 5.0)))
 	# Spine Chill / Whispers style proximity warning.
 	var k := _nearest_killer()
 	if k != null:
@@ -754,9 +766,20 @@ func _apply_passive_perks(delta: float) -> void:
 		_spine_chill = false
 
 
+## Grants a transient movement-speed multiplier that lasts `seconds` instead of a
+## single frame. Expiry is tracked by timestamp so _apply_passive_perks() can keep
+## re-applying it every frame until it lapses.
+func _grant_perk_speed(mult: float, seconds: float) -> void:
+	_perk_speed_mult = mult
+	_perk_speed_expire = Time.get_ticks_msec() + int(seconds * 1000.0)
+
+
 func notify_vaulted(_w: WindowVault) -> void:
-	if perk_mods.has("speed_mult") and str(perk_mods.get("source", "")) != "sprint":
-		pass
+	# Lithe: a fast vault grants a short speed burst on a cooldown.
+	if perk_mods.has("lithe_speed") and not perk_cooldowns.has("lithe_cd"):
+		perk_cooldowns["lithe_cd"] = float(perk_mods.get("lithe_cd", 40.0))
+		_grant_perk_speed(float(perk_mods["lithe_speed"]),
+				float(perk_mods.get("lithe_time", 3.0)))
 
 
 func on_enter_locker(l: Locker) -> void:
@@ -791,11 +814,10 @@ func _update_chase(delta: float) -> void:
 			in_chase = true
 			SaveData.add_bloodpoints("survival", 100)
 			EventBus.chase_started.emit(survivor_id)
-			if perk_mods.has("speed_mult") and not perk_cooldowns.has("sprint_burst"):
+		if perk_mods.has("speed_mult") and not perk_cooldowns.has("sprint_burst"):
 				perk_cooldowns["sprint_burst"] = float(perk_mods.get("cooldown", 40.0))
-				speed_scale = float(perk_mods["speed_mult"])
-				get_tree().create_timer(float(perk_mods.get("duration", 3.0))).timeout.connect(
-						func() -> void: speed_scale = 1.0)
+				_grant_perk_speed(float(perk_mods["speed_mult"]),
+						float(perk_mods.get("duration", 3.0)))
 	elif in_chase:
 		chase_timer -= delta
 		if chase_timer <= 0.0:
@@ -1120,8 +1142,10 @@ class DeadState:
 		s.collision_layer = 0
 		s.collision_mask = 0
 		s.play_anim("dead")
+		# A sacrificed survivor leaves no body on the map: hide the model entirely
+		# so the killer (and the camera) is not left staring at a frozen corpse.
 		if s.sprite != null:
-			s.sprite.modulate = Color(0.55, 0.5, 0.55, 0.7)
+			s.sprite.visible = false
 
 	func physics(_delta: float) -> void:
 		pass

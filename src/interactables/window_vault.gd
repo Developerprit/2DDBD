@@ -50,13 +50,25 @@ func vault_time(actor: Node) -> float:
 ## backwards", which is exactly the bug that was reported.
 ##
 ## Crossing means ending up opposite the side you approached from, so the side term
-## is subtracted rather than added.
+## is subtracted rather than added. The raw point is then snapped to the nearest
+## walkable cell so a window backed by a wall (a common map edge case) cannot drop
+## the actor inside solid geometry.
 func landing_point(from_pos: Vector2) -> Vector2:
 	var normal := Vector2(-direction.y, direction.x)
 	var side := signf((from_pos - global_position).dot(normal))
 	if is_zero_approx(side):
 		side = 1.0
-	return global_position - normal * side * GameConfig.TILE * 2.6
+	var raw := global_position - normal * side * GameConfig.TILE * 2.6
+	var mc := MatchController.instance
+	if mc != null:
+		var cell := mc.nearest_open_cell(Utils.tile_of(raw))
+		if cell.x >= 0:
+			var fixed := Utils.tile_center(cell)
+			# Only accept the snap if it stays on the far side of the window; a
+			# cell back on the near side would silently turn the vault into a shove.
+			if (fixed - global_position).dot(raw - global_position) >= 0.0:
+				raw = fixed
+	return raw
 
 
 func on_interact_start(actor: Node) -> void:

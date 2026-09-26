@@ -1056,15 +1056,23 @@ class AttackState:
 				# Dash forward at 1.5x. Direction is where the killer is heading
 				# (or facing, if standing still) so the lunge follows the aim.
 				if _lunge_dir == Vector2.ZERO:
-					_lunge_dir = k.wish_dir if k.wish_dir.length() > 0.1 \
-							else Vector2(cos(k.facing_rad), sin(k.facing_rad))
+					_lunge_dir = k.wish_dir
+					if _lunge_dir.length() <= 0.1:
+						_lunge_dir = Vector2(cos(k.facing_rad), sin(k.facing_rad))
 				k.set_facing_from(_lunge_dir)
 				k.velocity = _lunge_dir * GameConfig.m(GameConfig.K_LUNGE)
 				k.move_and_slide()
 				k._post_move(delta)
 			else:
-				k.move_input = Vector2.ZERO
-				k.apply_movement(delta)
+				# A quick attack still carries a short forward lean so the swing has
+				# weight instead of feeling like a stationary arm-wave. The lunge
+				# (held button) is the big dash; this is just enough to sell contact.
+				var dir := k.wish_dir
+				if dir.length() <= 0.1:
+					dir = Vector2(cos(k.facing_rad), sin(k.facing_rad))
+				k.velocity = dir * GameConfig.m(GameConfig.K_RUN) * 0.22
+				k.move_and_slide()
+				k._post_move(delta)
 		else:
 			# Recover in place; no movement during the blade-wipe.
 			k.move_input = Vector2.ZERO

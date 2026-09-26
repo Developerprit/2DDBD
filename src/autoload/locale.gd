@@ -79,6 +79,9 @@ const STRINGS := {
 	"hud.power": {"en": "Power", "zh": "力量"},
 	"hud.bloodlust": {"en": "Bloodlust", "zh": "杀戮欲望"},
 	"hud.heartbeat": {"en": "HEARTBEAT", "zh": "心跳"},
+	"hud.hooked": {"en": "HOOKED", "zh": "被挂"},
+	"hud.dead": {"en": "DEAD", "zh": "死亡"},
+	"hud.perks": {"en": "Perks", "zh": "技能"},
 	"unit.meters": {"en": "m", "zh": "米"},
 	"hud.item": {"en": "Item", "zh": "道具"},
 
@@ -109,9 +112,12 @@ const STRINGS := {
 	"act.self_unhook": {"en": "Attempt Escape", "zh": "尝试挣脱"},
 	"act.struggle": {"en": "STRUGGLE", "zh": "挣扎"},
 	"act.wiggle": {"en": "WIGGLE", "zh": "扭动"},
+	"act.calibrate": {"en": "CALIBRATE", "zh": "校准"},
 	"act.use_item": {"en": "Use Item", "zh": "使用道具"},
 	"hint.hold": {"en": "Hold", "zh": "长按"},
-	"hint.press": {"en": "Press", "zh": "按"},
+	"hint.press": {"en": "Press [Interact]", "zh": "按 [互动]"},
+	"hint.mash": {"en": "Mash [Interact]", "zh": "连打 [互动]"},
+	"hint.exit_locker": {"en": "Press [Interact] to leave", "zh": "按 [互动] 离开柜子"},
 	"hint.no_target": {"en": "Nothing to interact with", "zh": "附近没有可交互的东西"},
 
 	# --- states / feedback ---------------------------------------------

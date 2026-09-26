@@ -62,8 +62,9 @@ func _refresh() -> void:
 		for c in body.get_children():
 			c.queue_free()
 	if state == State.DROPPED:
-		# Written in local space; the sprite rotation carries it.
-		add_blocker(Vector2.ZERO, Vector2(30, 14))
+		# Written in local space; the sprite rotation carries it. Sized to span the
+		# full tile so there is no visible gap a survivor could clip through.
+		add_blocker(Vector2.ZERO, Vector2(32, 16))
 	if sprite != null:
 		sprite.texture = _tex.get(state, _tex[State.STANDING])
 

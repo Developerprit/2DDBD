@@ -18,3 +18,5 @@ _shot/
 _shot/
 __pycache__/
 *.pyc
+# Local headless test logs
+_check/

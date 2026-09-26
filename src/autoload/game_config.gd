@@ -37,7 +37,7 @@ const K_LUNGE := 6.9
 const K_LUNGE_RECOVER := 1.0
 const K_WINDOW_VAULT_TIME := 1.5
 const K_PALLET_BREAK_TIME := 2.6
-const K_ATTACK_WINDUP := 0.35
+const K_ATTACK_WINDUP := 0.30
 const K_ATTACK_COOLDOWN_TIME := 3.0
 ## 2.9 m to the survivor's centre. Measured against the 4.5 px survivor hitbox,
 ## 2.2 m made every swing fall visibly short -- "attack range is impossible to
@@ -74,7 +74,7 @@ const AI_STRUGGLE_FUMBLE_LOSS := 0.01
 # Objectives
 # ---------------------------------------------------------------------------
 const GENERATORS_TOTAL := 5
-const GENERATOR_TIME := 80.0
+const GENERATOR_TIME := 120.0  ## seconds of solo repair; longer = slower fill + more total work
 const GENERATOR_COOP_PENALTY := 0.15   ## each extra repairer costs 15% efficiency
 const EXIT_GATE_TIME := 20.0
 const EXIT_GATE_COUNT := 2
@@ -117,7 +117,7 @@ const SURVIVOR_VISION_RANGE := 420.0
 const SCRATCH_MARK_LIFETIME := 10.0
 const SCRATCH_MARK_INTERVAL := 0.35
 const BLOOD_DROP_INTERVAL := 0.6
-const BLOOD_LIFETIME := 90.0
+const BLOOD_LIFETIME := 12.0   ## blood pools fade fast; user: still too long at 25s
 const CROUCH_PROFILE_SCALE := 0.45     ## how much smaller a crouching survivor looks
 
 # ---------------------------------------------------------------------------

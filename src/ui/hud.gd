@@ -29,6 +29,8 @@ var bell_bar: ProgressBar
 var map_overlay: Control
 var fps_label: Label
 var objective_hint: Label
+var hook_label: Label
+var perk_label: Label
 
 var _toasts: Array = []
 var _map_visible := false
@@ -135,6 +137,15 @@ func _build_top_left() -> void:
 
 	objective_hint = UITheme.dim("", 9)
 	box.add_child(objective_hint)
+
+	hook_label = Label.new()
+	hook_label.text = "HOOKED 0 / 0"
+	hook_label.add_theme_font_size_override("font_size", 11)
+	hook_label.add_theme_color_override("font_color", UITheme.color("red"))
+	box.add_child(hook_label)
+
+	perk_label = UITheme.dim("", 9)
+	box.add_child(perk_label)
 
 
 func _build_top_right() -> void:
@@ -397,6 +408,8 @@ func _process(delta: float) -> void:
 	_sync_killer_panel()
 	_sync_heartbeat(delta)
 	_sync_map()
+	_sync_hooks()
+	_sync_perks()
 	if fps_label != null and GameConfig.show_fps:
 		fps_label.text = "%d fps" % int(Engine.get_frames_per_second())
 
@@ -499,6 +512,13 @@ func _sync_prompt() -> void:
 	if sv == null:
 		prompt_box.visible = false
 		return
+	# A live skill check (calibration) takes priority: tell the player which key to
+	# press. The dial already shows the band, this adds the missing key hint.
+	if sv.skill.active:
+		prompt_box.visible = true
+		prompt_label.text = "%s  %s" % [Locale.t("act.calibrate"), Locale.t("hint.press")]
+		prompt_bar.visible = false
+		return
 	var text := ""
 	var ratio := 0.0
 	var show_bar := false
@@ -509,11 +529,14 @@ func _sync_prompt() -> void:
 			# stage 1 is a rescue window, stage 2 is a fight, and a third is final.
 			var nth := "%d/3" % mini(sv.hook_count, 3)
 			if sv.hook_stage == 2:
-				text = "%s   %s" % [Locale.t("act.struggle"), nth]
+				text = "%s  %s  %s" % [Locale.t("act.struggle"), nth, Locale.t("hint.mash")]
 				show_bar = true
 			else:
-				text = "%s   %s" % [Locale.t("act.self_unhook"), nth]
+				text = "%s  %s  %s" % [Locale.t("act.self_unhook"), nth, Locale.t("hint.press")]
 			ratio = clampf(sv.struggle_value, 0.0, 1.0)
+		"locker":
+			text = Locale.t("hint.exit_locker")
+			show_bar = false
 		"carried":
 			text = Locale.t("act.wiggle")
 			ratio = clampf(sv.wiggle, 0.0, 1.0)
@@ -528,7 +551,7 @@ func _sync_prompt() -> void:
 			text = Locale.t("act.escape_trap")
 		_:
 			if sv.interact_target != null and is_instance_valid(sv.interact_target):
-				text = "%s: %s" % [Locale.t("hint.hold"), sv.interact_target.prompt(sv)]
+				text = "%s: %s" % [Locale.t("hint.press"), sv.interact_target.prompt(sv)]
 	if text == "" and mc != null and mc.player_role == Enums.Team.KILLER:
 		var k := mc.local_actor as Killer
 		if k != null:
@@ -546,6 +569,46 @@ func _sync_prompt() -> void:
 		prompt_bar.visible = show_bar
 		if show_bar:
 			prompt_bar.value = ratio * 100.0
+
+
+func _sync_hooks() -> void:
+	if mc == null or hook_label == null:
+		return
+	if mc.player_role != Enums.Team.SURVIVOR:
+		hook_label.visible = false
+		return
+	hook_label.visible = true
+	var hooked := 0
+	var dead := 0
+	var total := mc.survivors.size()
+	for sv in mc.survivors:
+		if not is_instance_valid(sv):
+			continue
+		if sv.health == Enums.Health.HOOKED:
+			hooked += 1
+		elif sv.health == Enums.Health.DEAD:
+			dead += 1
+	hook_label.text = "%s %d / %d  ·  %s %d" % [Locale.t("hud.hooked"),
+			hooked, total, Locale.t("hud.dead"), dead]
+
+
+func _sync_perks() -> void:
+	if mc == null or perk_label == null:
+		return
+	var a = mc.local_actor
+	if a == null or not is_instance_valid(a) or not ("perks" in a):
+		perk_label.visible = false
+		return
+	var names := []
+	for pid in a.perks:
+		var p: Dictionary = GameConfig.perks.get(pid, {})
+		if p.is_empty():
+			continue
+		var nm: Dictionary = p.get("name", {})
+		names.append(str(nm.get("zh", pid)))
+	perk_label.visible = names.size() > 0
+	if names.size() > 0:
+		perk_label.text = "%s: %s" % [Locale.t("hud.perks"), " · ".join(names)]
 
 
 func _sync_dial() -> void:

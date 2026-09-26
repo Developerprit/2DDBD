@@ -61,7 +61,7 @@
     "name": {"en": "Lithe", "zh": "轻盈"},
     "desc": {"en": "After a fast vault, gain 150% speed for 3 s. 40 s cooldown.", "zh": "快速翻越后获得 150% 移速 3 秒。冷却 40 秒。"},
     "trigger": "ON_VAULT",
-    "mods": {"speed_mult": 1.5, "duration": 3.0, "cooldown": 40.0}
+    "mods": {"lithe_speed": 1.5, "lithe_time": 3.0, "lithe_cd": 40.0}
   },
   "resilience": {
     "id": "resilience",
