@@ -197,6 +197,18 @@ const WRAITH_BELL_SLOW := 0.35            ## (legacy) movement multiplier while 
 const WRAITH_BELL_SPEED := 1.0            ## m/s while ringing: slowed to a crawl, NOT frozen in place,
                                           ## and releasing the power key aborts the ring.
 
+## Killer Instinct -- deliberately narrow. Exactly three things may trigger it:
+##   1. a survivor blowing a calibration (loud, and it gives them away),
+##   2. a survivor vaulting terrain within KI_VAULT_RANGE with NO line of sight,
+##   3. a power actually firing (a bear trap snapping shut).
+const KI_SKILL_REVEAL := 3.0              ## s revealed for a blown calibration
+const KI_VAULT_RANGE := 12.0              ## m; vaults this close with a wall between ping
+const KI_VAULT_REVEAL := 4.0              ## s revealed for a hidden vault
+
+## Chance a bot fumbles a calibration. Bots do not play the dial, so this single
+## roll is what makes their generators blow up sometimes.
+const AI_SKILLCHECK_FAIL_CHANCE := 0.20
+
 # ---------------------------------------------------------------------------
 # Scoring (bloodpoints)
 # ---------------------------------------------------------------------------

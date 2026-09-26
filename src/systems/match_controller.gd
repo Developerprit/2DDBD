@@ -131,6 +131,8 @@ func _begin() -> void:
 				_killer_forced = true
 			"--test-perks":
 				_test_perks = true
+			"--test-skillcheck":
+				_test_skillcheck = true
 			"--no-random-char":
 				_no_random_chars = true
 	var uargs := OS.get_cmdline_user_args()
@@ -145,6 +147,15 @@ func _begin() -> void:
 		if uargs[i] == "--survivor" and i + 1 < uargs.size():
 			GameConfig.selected_survivor = uargs[i + 1]
 	GameConfig.player_role = player_role
+
+	# Headless tests are written from the SURVIVOR's point of view and need the killer
+	# to be a bot. The save can now permanently lock the player's side, so a test run
+	# must never inherit it -- otherwise "the killer is local (no brain)" starts
+	# failing purely because the person at the keyboard played a killer match.
+	if _test_vault or _test_pallet or _test_kick or _test_instinct or _test_release \
+			or _test_wraith or _test_lunge or _test_ai or _test_perks or _test_skillcheck:
+		player_role = Enums.Team.SURVIVOR
+		GameConfig.player_role = player_role
 
 	_build_realm(seed_value)
 	# Layout inspection tool: render the realm to a PNG and print a readability
@@ -183,6 +194,9 @@ func _begin() -> void:
 		return
 	if _test_perks:
 		_run_perks_test()
+		return
+	if _test_skillcheck:
+		_run_skillcheck_test()
 		return
 	_setup_camera()
 	AudioDirector.start_ambient()
@@ -752,6 +766,7 @@ var _test_wraith := false
 var _test_lunge := false
 var _test_ai := false
 var _test_perks := false
+var _test_skillcheck := false
 var _killer_forced := false
 var _no_random_chars := false
 var _vault_counter := 0
@@ -1137,6 +1152,52 @@ func _run_instinct_test() -> void:
 			% [got.size(), "PASS" if ok4 else "FAIL"])
 	near.global_position = keep
 
+	# --- 5. a blown calibration reveals the survivor ----------------------
+	# The user's spec: exactly three things may trigger instinct, and this is the
+	# first of them. It was missing entirely before.
+	killer._instinct.clear()
+	var blower: Survivor = survivors[0] as Survivor
+	blower.health = Enums.Health.HEALTHY
+	blower._resolve_skill_check(0)
+	var after_fail := killer.instinct_active()
+	var ok5: bool = after_fail.size() == 1 and after_fail[0] == blower
+	all_ok = all_ok and ok5
+	print("[instinct-test] blown calibration revealed %d (want 1, the survivor)  %s"
+			% [after_fail.size(), "PASS" if ok5 else "FAIL"])
+
+	# --- 6. vaulting terrain within range with NO line of sight reveals ----
+	killer._instinct.clear()
+	var vaulter: Survivor = survivors[0] as Survivor
+	var hid_spot := Vector2.INF
+	for rad in [4, 5, 6, 7, 8, 9, 10]:
+		for ang in 16:
+			var p: Vector2 = killer.global_position + Vector2.RIGHT.rotated(
+					TAU * float(ang) / 16.0) * GameConfig.TILE * float(rad)
+			if is_walkable(p) and killer.blocked_by_wall(killer.global_position, p):
+				hid_spot = p
+				break
+		if hid_spot != Vector2.INF:
+			break
+	if hid_spot == Vector2.INF:
+		print("[instinct-test] no hidden spot on this realm -- vault check SKIPPED")
+	else:
+		vaulter.global_position = hid_spot
+		vaulter.notify_vaulted(null)
+		var after_vault := killer.instinct_active()
+		var ok6: bool = after_vault.size() == 1 and after_vault[0] == vaulter
+		all_ok = all_ok and ok6
+		print("[instinct-test] hidden vault revealed %d (want 1, the vaulter)  %s"
+				% [after_vault.size(), "PASS" if ok6 else "FAIL"])
+		# …but a vault well out of range must stay silent.
+		killer._instinct.clear()
+		vaulter.global_position = killer.global_position + Vector2(
+				GameConfig.TILE * (GameConfig.KI_VAULT_RANGE + 6.0), 0)
+		vaulter.notify_vaulted(null)
+		var ok7: bool = killer.instinct_active().is_empty()
+		all_ok = all_ok and ok7
+		print("[instinct-test] far vault stayed silent=%s  %s"
+				% [str(ok7), "PASS" if ok7 else "FAIL"])
+
 	print("[instinct-test] RESULT: %s" % ("PASS" if all_ok else "FAIL"))
 	get_tree().quit()
 
@@ -1287,6 +1348,53 @@ func _run_wraith_test() -> void:
 	ok = ok and decay_ok
 
 	print("[wraith-test] RESULT: %s" % ("PASS" if ok else "FAIL"))
+	get_tree().quit()
+
+
+## Bot calibration sanity check. Bots do not read the dial, so the ONLY thing that
+## decides their outcome is the fumble roll -- assert both outcomes really occur at
+## roughly the configured rate rather than trusting the code by eye.
+func _run_skillcheck_test() -> void:
+	var sv: Survivor = null
+	for s in survivors:
+		if is_instance_valid(s) and (s as Survivor).is_ai:
+			sv = s
+			break
+	if sv == null:
+		print("[skillcheck-test] no bot survivor  FAIL"); get_tree().quit(); return
+
+	# Resolving a check awards bloodpoints; snapshot and restore so a test run can
+	# never inflate the player's wallet.
+	var wallet_before: Dictionary = SaveData.wallet.duplicate()
+	var counts := {0: 0, 1: 0, 2: 0}
+	var tally := func(_id: int, grade: int) -> void:
+		counts[grade] = int(counts.get(grade, 0)) + 1
+	EventBus.skill_check_resolved.connect(tally)
+
+	var trials := 800
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	for i in trials:
+		sv.skill.begin(rng, 1.0, 1.0)
+		# Park the needle past the zone so the bot commits on this call.
+		sv.skill.value = 1.0
+		sv._ai_press_skill_check()
+	EventBus.skill_check_resolved.disconnect(tally)
+	SaveData.wallet = wallet_before
+
+	var fails := int(counts.get(0, 0))
+	var greats := int(counts.get(2, 0))
+	var goods := int(counts.get(1, 0))
+	var rate := float(fails) / float(trials)
+	var want := GameConfig.AI_SKILLCHECK_FAIL_CHANCE
+	# 800 trials at p=0.2: a +-6 point window is about 4 sigma, so this will not flake.
+	var rate_ok := absf(rate - want) <= 0.06
+	var both := fails > 0 and greats > 0 and goods == 0
+	print("[skillcheck-test] %d trials -> fail=%d (%.1f%%, want %.0f%%) great=%d good=%d"
+			% [trials, fails, rate * 100.0, want * 100.0, greats, goods])
+	print("[skillcheck-test] rate ok=%s  both outcomes seen=%s  %s"
+			% [str(rate_ok), str(both), "PASS" if (rate_ok and both) else "FAIL"])
+	print("[skillcheck-test] RESULT: %s" % ("PASS" if (rate_ok and both) else "FAIL"))
 	get_tree().quit()
 
 

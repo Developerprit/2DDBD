@@ -419,6 +419,9 @@ func _resolve_skill_check(grade: int) -> void:
 			if skill_on_generator is Generator:
 				(skill_on_generator as Generator).explode(0.09, self)
 			EventBus.toast.emit(Locale.t("fb.generator_exploded"), Color(0.9, 0.45, 0.35))
+			# A blown calibration is loud, and that is the first of the three things
+			# allowed to hand the killer Killer Instinct.
+			_reveal_to_killer(GameConfig.KI_SKILL_REVEAL)
 			if machine.current_name == "interact":
 				cancel_interaction()
 	skill_on_generator = null
@@ -438,13 +441,17 @@ func _process(delta: float) -> void:
 
 
 func _ai_press_skill_check() -> void:
-	# Bots aim for the great band but are not perfect.
-	var err := (1.0 - clampf(GameConfig.bot_difficulty, 0.4, 1.6)) * 0.05
-	var window := skill.great_half + err
-	if absf(skill.value - skill.great_center) <= window:
-		var grade := skill.press()
-		if grade >= 0:
-			_resolve_skill_check(grade)
+	# Bots do not read the dial. They wait until the needle reaches the zone, then
+	# commit to a single roll: AI_SKILLCHECK_FAIL_CHANCE of checks are fumbled and
+	# the generator explodes. The old version pressed exactly inside the great band
+	# every time, so a bot literally could not fail -- which made their repairs
+	# unbeatable and is why the calibration looked like it never happened.
+	if skill.value < skill.great_center:
+		return
+	var fail := randf() < GameConfig.AI_SKILLCHECK_FAIL_CHANCE
+	# Consume the check ourselves: the roll decides the grade, not the needle.
+	skill.abort()
+	_resolve_skill_check(0 if fail else 2)
 
 
 # ---------------------------------------------------------------------------
@@ -792,6 +799,31 @@ func notify_vaulted(_w: WindowVault) -> void:
 		perk_cooldowns["lithe_cd"] = float(perk_mods.get("lithe_cd", 40.0))
 		_grant_perk_speed(float(perk_mods["lithe_speed"]),
 				float(perk_mods.get("lithe_time", 3.0)))
+	# Second Killer Instinct trigger: vaulting terrain within KI_VAULT_RANGE while
+	# the killer has NO line of sight. That is exactly the moment the killer deserves
+	# to know somebody just slipped over a window behind a wall.
+	var mc := MatchController.instance
+	if mc == null:
+		return
+	var k := mc.killer as Killer
+	if k == null or not is_instance_valid(k):
+		return
+	if global_position.distance_to(k.global_position) \
+			<= GameConfig.TILE * GameConfig.KI_VAULT_RANGE \
+			and k.blocked_by_wall(k.global_position, global_position):
+		k.instinct_reveal(self, GameConfig.KI_VAULT_REVEAL)
+
+
+## Hands our position to the killer as Killer Instinct. Unlike _nearest_killer()
+## this is not distance-limited: instinct belongs to the killer, it is not a
+## proximity tell.
+func _reveal_to_killer(seconds: float) -> void:
+	var mc := MatchController.instance
+	if mc == null:
+		return
+	var k := mc.killer as Killer
+	if k != null and is_instance_valid(k):
+		k.instinct_reveal(self, seconds)
 
 
 func on_enter_locker(l: Locker) -> void:
