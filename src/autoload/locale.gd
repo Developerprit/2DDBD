@@ -57,6 +57,7 @@ const STRINGS := {
 	"loadout.role": {"en": "Role", "zh": "阵营"},
 	"loadout.role.survivor": {"en": "Survivor", "zh": "逃生者"},
 	"loadout.role.killer": {"en": "Killer", "zh": "杀手"},
+	"loadout.role.locked": {"en": "side locked after your first trial", "zh": "首次进入后不可切换阵容"},
 	"loadout.character": {"en": "Character", "zh": "角色"},
 	"loadout.power": {"en": "Power", "zh": "力量"},
 	"loadout.perks": {"en": "Perks", "zh": "技能"},
@@ -241,6 +242,7 @@ const STRINGS := {
 	"power.bell.uncloaked": {"en": "Uncloaked", "zh": "显形"},
 	"power.bell.ringing": {"en": "Ringing…", "zh": "敲钟中…"},
 	"power.bell.cancelled": {"en": "Bell released", "zh": "已松手"},
+	"power.bell.need_uncloak": {"en": "Ring the bell to materialise first", "zh": "先敲钟显形再交互"},
 }
 
 

@@ -201,8 +201,12 @@ func _build_dial() -> void:
 func _build_killer_panel() -> void:
 	killer_panel = PanelContainer.new()
 	killer_panel.add_theme_stylebox_override("panel", _panel_style())
-	killer_panel.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	killer_panel.position = Vector2(8, -56)
+	# set_anchors_preset() + position() leaves the panel at an absolute offset from
+	# the parent's TOP-left, so (8, -56) parked the whole killer readout -- bloodlust,
+	# trap stock AND the bell channel bar -- above the top of the screen. Using the
+	# anchors+offsets form puts it 8 px inside the bottom-left corner instead.
+	killer_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT,
+			Control.PRESET_MODE_MINSIZE, 8)
 	killer_panel.visible = false
 	root.add_child(killer_panel)
 
@@ -508,6 +512,13 @@ func _sync_team() -> void:
 
 
 func _sync_prompt() -> void:
+	# Killer POV gets its own pass FIRST. _local_survivor() returns null when the
+	# player is the killer, so the old early-out meant the killer saw no prompt at
+	# all: no pickup hint and, crucially, no bell channel progress -- which is
+	# exactly what "I cannot see my own bell ringing" turned out to be.
+	if mc != null and mc.player_role == Enums.Team.KILLER:
+		_sync_killer_prompt()
+		return
 	var sv := _local_survivor()
 	if sv == null:
 		prompt_box.visible = false
@@ -552,20 +563,43 @@ func _sync_prompt() -> void:
 		_:
 			if sv.interact_target != null and is_instance_valid(sv.interact_target):
 				text = "%s: %s" % [Locale.t("hint.press"), sv.interact_target.prompt(sv)]
-	if text == "" and mc != null and mc.player_role == Enums.Team.KILLER:
-		var k := mc.local_actor as Killer
-		if k != null:
-			if k.is_carrying:
-				text = "%s: %s / %s" % [Locale.t("hint.press"), Locale.t("act.hook"), Locale.t("act.pickup")]
-			elif k.find_pickup_probe() != null:
-				text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.pickup")]
-			elif k.nearest_kickable_generator() != null:
-				text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.damage_gen")]
-
 	prompt_box.visible = text != ""
 	if text != "":
 		if prompt_label.text != text:
 			prompt_label.text = text
+		prompt_bar.visible = show_bar
+		if show_bar:
+			prompt_bar.value = ratio * 100.0
+
+
+## The killer's version of the prompt strip: bell channel progress while ringing,
+## then the contextual action hint (hook / pick up / damage).
+func _sync_killer_prompt() -> void:
+	var k := mc.local_actor as Killer
+	if k == null or not is_instance_valid(k):
+		prompt_box.visible = false
+		return
+	var text := ""
+	var ratio := 0.0
+	var show_bar := false
+
+	if k.char_id == "wraith" and k._bell_active:
+		text = "%s  %s  %d%%" % [Locale.t("power.bell"), Locale.t("power.bell.ringing"),
+				int(clampf(k._bell_progress / maxf(0.01, k._bell_duration), 0.0, 1.0) * 100.0)]
+		ratio = clampf(k._bell_progress / maxf(0.01, k._bell_duration), 0.0, 1.0)
+		show_bar = true
+	elif k.is_carrying:
+		text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.hook")]
+	elif k.cloaked:
+		text = Locale.t("power.bell.need_uncloak")
+	elif k.find_pickup_probe() != null:
+		text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.pickup")]
+	elif k.nearest_kickable_generator() != null:
+		text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.damage_gen")]
+
+	prompt_box.visible = text != ""
+	if text != "":
+		prompt_label.text = text
 		prompt_bar.visible = show_bar
 		if show_bar:
 			prompt_bar.value = ratio * 100.0

@@ -448,21 +448,33 @@ func _spawn_actors() -> void:
 	var surv_points: Array = spawns.get("survivors", [])
 	var killer_point: Vector2 = spawns.get("killer", Vector2(GameConfig.MAP_SIZE * 0.5, 50))
 
-	# Per-match random line-up. The user asked for a fresh cast every trial and
-	# explicitly allowed duplicates, so each of the four survivor slots is an
-	# independent draw from the whole survivor pool -- the same character can
-	# appear more than once.
+	# Per-match random line-up for the BOTS. The human plays the character they
+	# picked in the loadout -- slot 0 used to be a random draw like the rest, so the
+	# player's own choice was silently ignored and they spawned as someone random.
 	var surv_pool: Array = GameConfig.survivors.keys()
+	var local_is_survivor := player_role == Enums.Team.SURVIVOR
 	var roster: Array = []
-	for i in 4:
-		roster.append(surv_pool[randi() % surv_pool.size()])
-	# The human (when playing survivor) controls roster[0]; that slot is already a
-	# random draw, so no special-casing is needed.
+	if _no_random_chars:
+		# Deterministic line-up for tests: the human's pick first, then the pool in
+		# roster order, so nothing depends on the RNG.
+		var first: String = GameConfig.selected_survivor if local_is_survivor \
+				else str(surv_pool[0])
+		roster.append(first)
+		for cid in surv_pool:
+			if roster.size() >= 4:
+				break
+			if str(cid) != first:
+				roster.append(cid)
+	else:
+		for i in 4:
+			roster.append(surv_pool[randi() % surv_pool.size()])
+		if local_is_survivor:
+			roster[0] = GameConfig.selected_survivor
 
-	# The killer is a random draw from the killer pool as well -- unless a test
-	# or --killer override pinned a specific one.
+	# The killer is a random draw too -- unless a test/--killer override pinned one,
+	# or the human is the killer, in which case their pick must be honoured.
 	var killer_pool: Array = GameConfig.killers.keys()
-	if not _killer_forced:
+	if not _killer_forced and player_role != Enums.Team.KILLER:
 		GameConfig.selected_killer = killer_pool[randi() % killer_pool.size()]
 
 	var idx := 0
@@ -1189,7 +1201,7 @@ func _run_release_test() -> void:
 
 
 ## Wraith "Wailing Bell" assertion test. Drives the real bell channel and proves
-## every number in the user's spec: 2.5 s to ENTER cloak, 3 s to EXIT, 5.0 m/s
+## every number in the user's spec: 1.5 s to ENTER cloak, 2.5 s to EXIT, 5.0 m/s
 ## while cloaked, a 150% burst for 1 s on materialising, and the distance-based
 ## stealth (invisible past 20 m, faint shimmer within).
 func _run_wraith_test() -> void:
@@ -1217,8 +1229,10 @@ func _run_wraith_test() -> void:
 		await get_tree().physics_frame
 		f += 1
 	await get_tree().physics_frame
-	var bell_in := killer.cloaked and f >= int(F * 2.5 - 0.4 * F) and f <= int(F * 2.5 + 0.4 * F)
-	print("[wraith-test] cloaked after %d frames (~%.2fs, want ~2.5s)  %s" % [f, float(f) / F, "PASS" if bell_in else "FAIL"])
+	var want_in := GameConfig.WRAITH_BELL_CLOAK_TIME
+	var bell_in := killer.cloaked and f >= int(F * want_in - 0.4 * F) and f <= int(F * want_in + 0.4 * F)
+	print("[wraith-test] cloaked after %d frames (~%.2fs, want ~%.1fs)  %s"
+			% [f, float(f) / F, want_in, "PASS" if bell_in else "FAIL"])
 	ok = ok and bell_in
 	var cloak_speed := killer.base_speed()
 	var want_cloak := GameConfig.m(GameConfig.WRAITH_CLOAK_CLOAKED_SPEED)
@@ -1252,8 +1266,10 @@ func _run_wraith_test() -> void:
 		await get_tree().physics_frame
 		f += 1
 	await get_tree().physics_frame
-	var uncloak_time_ok := (not killer.cloaked) and f >= int(F * 3.0 - 0.4 * F) and f <= int(F * 3.0 + 0.4 * F)
-	print("[wraith-test] uncloaked after %d frames (~%.2fs, want ~3.0s)  %s" % [f, float(f) / F, "PASS" if uncloak_time_ok else "FAIL"])
+	var want_out := GameConfig.WRAITH_BELL_UNCLOAK_TIME
+	var uncloak_time_ok := (not killer.cloaked) and f >= int(F * want_out - 0.4 * F) and f <= int(F * want_out + 0.4 * F)
+	print("[wraith-test] uncloaked after %d frames (~%.2fs, want ~%.1fs)  %s"
+			% [f, float(f) / F, want_out, "PASS" if uncloak_time_ok else "FAIL"])
 	ok = ok and uncloak_time_ok
 	var haste_speed := killer.base_speed()
 	var want_haste := GameConfig.m(GameConfig.K_RUN) * GameConfig.WRAITH_UNCLOAK_HASTE_MULT
@@ -1603,11 +1619,12 @@ func _debug_log() -> void:
 			hook_note = "/s%d" % int(sv.current_hook.stage)
 		parts.append("%s=%s/%s/h%d%s" % [sv.char_id, Enums.health_to_string(sv.health),
 				sv.machine.current_name, sv.hook_count, hook_note])
-	parts.append("ai: vaults=%d/scratch=%d/kicks=%d/regress=%d/loopcut=%d/rotate=%d/KI=%d/bell=%d/cloak=%d"
+	parts.append("ai: vaults=%d/scratch=%d/kicks=%d/regress=%d/loopcut=%d/rotate=%d/KI=%d/bell=%d/cloak=%d/bellwalk=%d"
 			% [_vault_counter, KillerBrain.scratch_follows, KillerBrain.gens_kicked,
 			_regressing_gens(), KillerBrain.loop_cuts, SurvivorBrain.rotations,
 			killer.instinct_active().size() if killer != null else -1,
-			KillerBrain.bell_rings, KillerBrain.bell_cloaks])
+			KillerBrain.bell_rings, KillerBrain.bell_cloaks,
+			KillerBrain.bell_move_frames])
 	var kpos := Vector2.ZERO
 	var kstate := "-"
 	if killer != null and is_instance_valid(killer):

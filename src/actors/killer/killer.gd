@@ -229,9 +229,12 @@ func _interact_pressed() -> void:
 	if is_carrying:
 		hook_carried()
 		return
-	# You cannot pick up, vault, break or kick from the phase world. Ringing the
-	# bell to materialise is the only way out, and it costs the 3 s channel.
-	if _try_uncloak_for_action():
+	# You cannot pick up, vault, break or kick while cloaked -- but the interact key
+	# no longer starts the bell to get you out of it. Ringing the Wailing Bell is
+	# the POWER key's job; letting interact start it too meant one press could
+	# silently become a channel and the interaction the player asked for vanished.
+	if cloaked:
+		EventBus.toast.emit(Locale.t("power.bell.need_uncloak"), Color(0.6, 0.8, 0.9))
 		return
 	if machine.current_name != "move":
 		return
@@ -1002,16 +1005,11 @@ class MoveState:
 		k.apply_movement(delta)
 
 	func update(_delta: float) -> void:
-		var k := actor as Killer
-		if k.is_ai:
-			return
-		# A cloaked Wraith is intangible -- he cannot grab a body, and more
-		# importantly he must be free to STAY cloaked while he moves. Auto-pickup
-		# (walking over a downed survivor) is skipped while cloaked; the human
-		# presses interact to ring the bell and materialise first. Without this
-		# guard the Wraith uncloaked itself on the very first move frame.
-		if not k.cloaked and k.try_pickup():
-			machine.change("carry")
+		# No auto-pickup. Walking over a downed survivor used to snap them onto the
+		# shoulder with no input at all, which reads as a teleport -- and it also
+		# meant an AI-style convenience was silently applied to the human. Picking a
+		# body up is now explicitly the interact key (Killer._interact_pressed).
+		pass
 
 
 class AttackState:
@@ -1074,12 +1072,19 @@ class AttackState:
 			if _promote_lunge(k):
 				_is_lunge = true
 			if _is_lunge:
-				# Dash forward at 1.5x. Direction is where the killer is heading
-				# (or facing, if standing still) so the lunge follows the aim.
+				# Steerable lunge. The aim is re-read EVERY frame (movement input,
+				# else facing) so the dash can be curved into a survivor, but the
+				# turn rate is capped -- a lunge is a committed charge, not a spin.
+				var want := k.wish_dir
+				if want.length() <= 0.1:
+					want = Vector2(cos(k.facing_rad), sin(k.facing_rad))
+				want = want.normalized()
 				if _lunge_dir == Vector2.ZERO:
-					_lunge_dir = k.wish_dir
-					if _lunge_dir.length() <= 0.1:
-						_lunge_dir = Vector2(cos(k.facing_rad), sin(k.facing_rad))
+					_lunge_dir = want
+				else:
+					var turn := Utils.angle_delta(_lunge_dir.angle(), want.angle())
+					var step := GameConfig.K_LUNGE_TURN * delta
+					_lunge_dir = _lunge_dir.rotated(clampf(turn, -step, step)).normalized()
 				k.set_facing_from(_lunge_dir)
 				k.velocity = _lunge_dir * GameConfig.m(GameConfig.K_LUNGE)
 				k.move_and_slide()

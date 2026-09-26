@@ -51,6 +51,9 @@ static var loop_cuts := 0
 ## longer spamming the bell.
 static var bell_rings := 0
 static var bell_cloaks := 0
+## Frames the bot spent actively steering during a bell channel. Proves the Wraith
+## keeps walking while it rings instead of standing frozen.
+static var bell_move_frames := 0
 static var last_mode := 0
 
 ## Minimum seconds between two bell decisions. Long enough that cloaking and
@@ -99,8 +102,13 @@ func think(delta: float) -> void:
 	search_timer -= delta
 	_update_stuck(delta)
 
-	if k.machine.current_name in ["attack", "stun", "hooking", "vault", "place_trap", "break_pallet", "bell"]:
+	if k.machine.current_name in ["attack", "stun", "hooking", "vault", "place_trap", "break_pallet"]:
 		k.move_input = Vector2.ZERO
+		return
+	if k.machine.current_name == "bell":
+		# The bell only slows the Wraith to a crawl, it does not root him. Keep
+		# steering, or the bot stands frozen for the whole channel and looks broken.
+		_bell_walk()
 		return
 
 	if k.is_carrying and k.carried != null:
@@ -494,6 +502,28 @@ func _pick_patrol_point() -> Vector2:
 		return target
 	var jitter := Vector2(randf_range(-3, 3), randf_range(-3, 3)) * GameConfig.TILE
 	return Utils.tile_center(cell) + jitter
+
+
+## Steering used while the bell channels. The bell only slows the killer; it does
+## not root him, so the bot keeps closing the distance at the crawl speed the
+## bell imposes. Deliberately simple: steer at the next path point (or the goal)
+## instead of reusing _follow(), which may repath or force a vault -- neither is
+## allowed mid-channel.
+func _bell_walk() -> void:
+	var goal_pos := goal
+	if path.size() > 0:
+		while path_index < path.size() \
+				and k.global_position.distance_to(path[path_index]) < GameConfig.TILE * 0.5:
+			path_index += 1
+		if path_index < path.size():
+			goal_pos = path[path_index]
+	if goal_pos == Vector2.ZERO \
+			or k.global_position.distance_to(goal_pos) < GameConfig.TILE * 0.3:
+		k.move_input = Vector2.ZERO
+		return
+	k.move_input = (goal_pos - k.global_position).normalized()
+	k.gait = Enums.Gait.RUN
+	bell_move_frames += 1
 
 
 # ---------------------------------------------------------------------------

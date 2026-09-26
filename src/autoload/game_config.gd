@@ -39,6 +39,10 @@ const K_BLOODLUST := [4.78, 4.97, 5.15]
 ## uses to fling the killer forward during the open phase.
 const K_LUNGE := 6.9
 const K_LUNGE_RECOVER := 1.0
+## How fast a lunge may be steered, in radians/second. The lunge is not a locked
+## straight line: the killer can curve it toward a survivor, but at a limited rate
+## so it cannot be spun 180 degrees on the spot.
+const K_LUNGE_TURN := 3.0
 const K_WINDOW_VAULT_TIME := 1.5
 const K_PALLET_BREAK_TIME := 2.6
 const K_ATTACK_WINDUP := 0.30
@@ -187,8 +191,8 @@ const WRAITH_CLOAK_VIS_RANGE := 20.0      ## m; beyond this a cloaked Wraith is 
 const WRAITH_CLOAK_SEMI_ALPHA := 0.18     ## faint shimmer alpha within the visibility bubble
 const WRAITH_UNCLOAK_HASTE_MULT := 1.5    ## 150% move speed on materialising
 const WRAITH_UNCLOAK_HASTE_TIME := 1.0    ## seconds the uncloak haste lasts
-const WRAITH_BELL_CLOAK_TIME := 2.5       ## s ringing to ENTER cloak
-const WRAITH_BELL_UNCLOAK_TIME := 3.0     ## s ringing to EXIT cloak
+const WRAITH_BELL_CLOAK_TIME := 1.5       ## s ringing to ENTER cloak
+const WRAITH_BELL_UNCLOAK_TIME := 2.5     ## s ringing to EXIT cloak
 const WRAITH_BELL_SLOW := 0.35            ## (legacy) movement multiplier while ringing the bell
 const WRAITH_BELL_SPEED := 1.0            ## m/s while ringing: slowed to a crawl, NOT frozen in place,
                                           ## and releasing the power key aborts the ring.

@@ -223,6 +223,8 @@ func _draw_bg() -> void:
 # Main page
 # ---------------------------------------------------------------------------
 var _main_page: VBoxContainer
+## The survivor / killer toggle buttons, so the lock state can disable them.
+var _role_buttons: Array = []
 
 
 func _build_main_page() -> void:
@@ -237,19 +239,25 @@ func _build_main_page() -> void:
 	surv_btn.text = Locale.t("loadout.role.survivor")
 	surv_btn.custom_minimum_size = Vector2(130, 30)
 	surv_btn.pressed.connect(func() -> void:
+		if SaveData.role_locked:
+			return
 		GameConfig.player_role = Enums.Team.SURVIVOR
 		AudioDirector.play("ui_click", -8.0)
 		_refresh_loadout())
 	role_row.add_child(surv_btn)
+	_role_buttons.append(surv_btn)
 
 	var kill_btn := Button.new()
 	kill_btn.text = Locale.t("loadout.role.killer")
 	kill_btn.custom_minimum_size = Vector2(130, 30)
 	kill_btn.pressed.connect(func() -> void:
+		if SaveData.role_locked:
+			return
 		GameConfig.player_role = Enums.Team.KILLER
 		AudioDirector.play("ui_click", -8.0)
 		_refresh_loadout())
 	role_row.add_child(kill_btn)
+	_role_buttons.append(kill_btn)
 
 	var hint := UITheme.dim("", 10)
 	hint.name = "RoleHint"
@@ -284,16 +292,35 @@ func _update_role_hint() -> void:
 	var hint := _main_page.get_meta("role_hint") as Label
 	if hint == null:
 		return
+	var who := ""
 	if GameConfig.player_role == Enums.Team.SURVIVOR:
-		hint.text = "%s: %s" % [Locale.t("loadout.character"),
-				Locale.t(str(GameConfig.survivors.get(GameConfig.selected_survivor, {}).get("name_key", "char.dwight")))]
+		who = Locale.t(str(GameConfig.survivors.get(GameConfig.selected_survivor,
+				{}).get("name_key", "char.dwight")))
 	else:
-		hint.text = "%s: %s" % [Locale.t("loadout.character"),
-				Locale.t(str(GameConfig.killers.get(GameConfig.selected_killer, {}).get("name_key", "char.trapper")))]
+		who = Locale.t(str(GameConfig.killers.get(GameConfig.selected_killer,
+				{}).get("name_key", "char.trapper")))
+	# The side is chosen once, on the first trial, then locked.
+	var locked := SaveData.role_locked
+	for b in _role_buttons:
+		var btn := b as Button
+		if btn != null and is_instance_valid(btn):
+			btn.disabled = locked
+	if locked:
+		hint.text = "%s: %s  ·  %s" % [Locale.t("loadout.character"), who,
+				Locale.t("loadout.role.locked")]
+	else:
+		hint.text = "%s: %s" % [Locale.t("loadout.character"), who]
 
 
 func _start_match() -> void:
 	AudioDirector.play("ui_click", -4.0)
+	# The first trial locks the side in. Progression is per-camp, so letting a save
+	# hop between survivor and killer afterwards would let one side's bloodweb pay
+	# for the other's perks.
+	if not SaveData.role_locked:
+		SaveData.role_locked = true
+		SaveData.locked_role = GameConfig.player_role
+	SaveData.last_loadout["player_role"] = GameConfig.player_role
 	SaveData.save_all()
 	GameConfig.set_meta("pending_seed", randi())
 	SceneRouter.goto_match()
@@ -979,7 +1006,7 @@ func _tutorial_text() -> String:
 			"左键 = 挥刀（有后摇；按住可突刺，射程更远）。右键 = 力量。",
 			"靠近倒地的逃生者按 E 抱起，扛着时再按 E 挂钩。",
 			"木板挡路时站着长按 E 踩碎（2.6 秒）；窗户杀手翻越更慢（1.5 秒），绕窗是逃生者的核心技巧。",
-			"幽灵 · 哀嚎之铃：按住右键敲钟，2.5 秒隐身 / 3 秒显形。敲钟时移速降到 1.0 但可继续走动，松开右键即可中断。",
+			"幽灵 · 哀嚎之铃：按住右键敲钟，1.5 秒隐身 / 2.5 秒显形。敲钟时移速降到 1.0 但可继续走动，松开右键即可中断。",
 			"隐身时没有心跳与红痕，20m 外对逃生者完全不可见（你自己始终看得见自己）。" + end,
 			"",
 			gold + "键盘总览" + end,
@@ -1000,7 +1027,7 @@ func _tutorial_text() -> String:
 		"LEFT CLICK swings (long recovery); HOLD it to lunge for extra reach. RIGHT CLICK is your power.",
 		"Standing over a downed survivor, press E to pick them up; press E again while carrying to hook them.",
 		"HOLD E on a dropped pallet to break it. You vault windows slowly (1.5 s) - that is why survivors loop them.",
-		"WRAITH - Wailing Bell: HOLD right click to ring, 2.5 s to cloak / 3 s to uncloak. While ringing you crawl at 1.0 m/s but keep walking freely, and letting go of right click cancels the ring.",
+		"WRAITH - Wailing Bell: HOLD right click to ring, 1.5 s to cloak / 2.5 s to uncloak. While ringing you crawl at 1.0 m/s but keep walking freely, and letting go of right click cancels the ring.",
 		"Cloaked you make no heartbeat and no red stain, and survivors cannot see you past 20 m (you always see yourself)." + end,
 		"",
 		gold + "KEYS" + end,
