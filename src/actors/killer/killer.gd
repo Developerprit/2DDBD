@@ -142,11 +142,12 @@ func _register_states() -> void:
 # ---------------------------------------------------------------------------
 func base_speed() -> float:
 	if char_id == "wraith":
-		# Ringing the bell locks the killer in place (vulnerable, slowed). The
-		# channel cannot be rushed, so this is applied first and bypasses the
-		# normal modifiers entirely.
+		# Ringing the bell slows the killer to a crawl (1.0 m/s) but does NOT root
+		# him: the original lets the Wraith keep walking while ringing, and a
+		# released power key aborts the channel. Applied first, bypassing the
+		# normal modifiers so nothing else can speed it up mid-ring.
 		if _bell_active:
-			return GameConfig.m(GameConfig.K_RUN) * GameConfig.WRAITH_BELL_SLOW * speed_mult
+			return GameConfig.m(GameConfig.WRAITH_BELL_SPEED) * speed_mult
 		var s := GameConfig.m(GameConfig.K_RUN)
 		if cloaked:
 			# Cloaked: the bell IS the speed boost -- 5.0 m/s.
@@ -868,7 +869,14 @@ func _update_cloak(delta: float) -> void:
 
 ## Distance-based stealth: the local player cannot see a cloaked Wraith past 20 m.
 ## Inside that bubble he reads as a faint shimmer; outside, nothing at all.
+##
+## The cloak is a stealth effect aimed at the OTHER side, so the alpha is only
+## meaningful from a survivor's point of view. A player driving the killer must
+## always see their own body -- otherwise cloaking would delete your own model and
+## make the power unplayable. That is exactly the bug that was reported.
 func _cloak_target_alpha() -> float:
+	if GameConfig.player_role == Enums.Team.KILLER:
+		return 1.0
 	var vis := GameConfig.WRAITH_CLOAK_VIS_RANGE * GameConfig.TILE
 	var nearest := 1e9
 	for s in get_tree().get_nodes_in_group("survivor"):
@@ -907,6 +915,19 @@ func _finish_bell() -> void:
 	EventBus.toast.emit("%s — %s" % [Locale.t("power.bell"),
 			Locale.t("power.bell.cloaked" if cloaked else "power.bell.uncloaked")],
 			Color(0.6, 0.8, 0.9))
+
+
+## Abort a bell channel in progress (the player let go of the power key). The
+## cloak state is deliberately left alone: an aborted ring simply does nothing.
+func _cancel_bell() -> void:
+	if not _bell_active:
+		return
+	_bell_active = false
+	_bell_progress = 0.0
+	if red_stain != null:
+		red_stain.visible = not cloaked
+	EventBus.toast.emit("%s — %s" % [Locale.t("power.bell"),
+			Locale.t("power.bell.cancelled")], Color(0.6, 0.7, 0.8))
 
 
 # ---------------------------------------------------------------------------
@@ -1362,13 +1383,16 @@ class StunState:
 
 class BellState:
 	extends StateMachine.State
-	## Ringing the Wailing Bell. The killer is locked, slowed and vulnerable for
-	## the whole channel (2.5 s to cloak, 3 s to uncloak) and cannot cancel it
-	## except by being stunned. On completion _finish_bell() flips the cloak.
+	## Ringing the Wailing Bell. The killer is slowed to a crawl (1.0 m/s) and
+	## vulnerable for the whole channel (2.5 s to cloak, 3 s to uncloak) but is
+	## NOT rooted in place -- he may keep walking. The channel ends three ways:
+	## completion (_finish_bell), a stun, or the player releasing the power key,
+	## which aborts it and leaves the cloak state untouched.
 
 	func enter(_msg: Dictionary = {}) -> void:
 		var k := actor as Killer
-		k.move_input = Vector2.ZERO
+		# Keep whatever move_input the movement readers already produced: the bell
+		# allows a slow walk rather than locking the killer down.
 		k.velocity = Vector2.ZERO
 		# Reuse the swing pose as a "ringing" tell; the sprite stays solid (the
 		# killer is visible while he rings) so the survivor gets a fair warning.
@@ -1378,14 +1402,20 @@ class BellState:
 
 	func physics(delta: float) -> void:
 		var k := actor as Killer
-		# _update_cloak / base_speed apply the bell slow; just integrate it.
-		k.move_input = Vector2.ZERO
+		# base_speed() already clamps the bell crawl; just integrate whatever the
+		# player (or brain) asked for this frame.
 		k.apply_movement(delta)
 
 	func update(delta: float) -> void:
 		var k := actor as Killer
 		if not k._bell_active:
 			# Stun cancelled the channel mid-ring.
+			machine.change("move")
+			return
+		# Releasing the power key aborts the ring. Only the human player can do
+		# this; the AI rings by holding the channel to completion.
+		if not k.is_ai and Input.is_action_just_released("use_power"):
+			k._cancel_bell()
 			machine.change("move")
 			return
 		k._bell_progress += delta

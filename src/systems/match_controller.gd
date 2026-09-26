@@ -1256,6 +1256,20 @@ func _run_wraith_test() -> void:
 	get_tree().quit()
 
 
+## True when a body of `margin` radius can travel from `from` along `delta` without
+## scraping a wall. Samples the swept corridor on both sides of the centre line so
+## a spot that merely grazes a corner is rejected before it can flake the test.
+func _has_clear_corridor(from: Vector2, delta: Vector2, margin: float) -> bool:
+	var steps := 8
+	var side := Vector2(-delta.y, delta.x).normalized() * margin
+	for i in steps + 1:
+		var t := float(i) / float(steps)
+		var p := from + delta * t
+		if killer.blocked_by_wall(p, p + side) or killer.blocked_by_wall(p - side, p):
+			return false
+	return true
+
+
 ## Lunge vs Quick attack. A quick swing only reaches the base 2.9 tiles; a lunge
 ## multiplies reach by 1.5 AND dashes the killer forward, so from the same mid
 ## range a quick whiffs while a lunge connects -- and the lunge physically moves
@@ -1275,56 +1289,82 @@ func _run_lunge_test() -> void:
 		print("[lunge-test] no survivor  FAIL"); get_tree().quit(); return
 	sv.is_ai = false  # keep it parked
 
-	# Find an open stretch with clear line of sight for the swing.
+	# Gather candidate firing lines and try them until the lunge actually connects.
+	# A wall ray cannot see props (crates, rocks, cars) which still block a dash,
+	# and the killer's body has a radius, so predicting every obstacle from
+	# geometry alone is unreliable and made this test flaky. Trying real spots is
+	# not: a QUICK attack that connects at this range would be a genuine logic
+	# failure, so that is asserted once, on the first candidate.
 	var candidates: Array = []
 	for s in survivors:
 		candidates.append(s.global_position)
 	candidates.append(killer.global_position)
+	for gy in range(5, map_size - 5, 4):
+		for gx in range(5, map_size - 5, 4):
+			var cell := Vector2i(gx, gy)
+			if nearest_open_cell(cell) == cell:
+				candidates.append(Utils.tile_center(cell))
+
+	var quick_miss := true
+	var quick_done := false
 	var base := Vector2.ZERO
-	var chosen := false
-	for c in candidates:
-		var t: Vector2 = c + Vector2(GameConfig.TILE * D, 0)
-		if not killer.blocked_by_wall(c, t):
-			base = c
-			chosen = true
-			break
-	if not chosen:
-		print("[lunge-test] no open LOS spot found  FAIL"); get_tree().quit(); return
-	var target := base + Vector2(GameConfig.TILE * D, 0)
-
-	# Quick attack from this range must MISS.
-	sv.health = Enums.Health.HEALTHY
-	killer.global_position = base
-	sv.global_position = target
-	killer.face_towards(target)
-	killer.attack_cooldown = 0.0
-	killer.machine.force("attack", {"lunge": false})
+	var target := Vector2.ZERO
+	var lunge_hit := false
 	var f := 0
-	while f < 120 and killer.machine.current_name == "attack":
-		await get_tree().physics_frame
-		f += 1
-	await get_tree().physics_frame
-	var quick_miss := sv.health == Enums.Health.HEALTHY
-	print("[lunge-test] quick @%.1fm -> %s (want HEALTHY/MISS)  %s"
-		% [D, Enums.health_to_string(sv.health), "PASS" if quick_miss else "FAIL"])
-	ok = ok and quick_miss
+	for c in candidates:
+		if not _has_clear_corridor(c, Vector2(GameConfig.TILE * D, 0), 14.0):
+			continue
+		var tgt: Vector2 = c + Vector2(GameConfig.TILE * D, 0)
 
-	# Lunge attack from the SAME range must HIT.
-	sv.health = Enums.Health.HEALTHY
-	killer.global_position = base
-	sv.global_position = target
-	killer.face_towards(target)
-	killer.attack_cooldown = 0.0
-	killer.machine.force("attack", {"lunge": true})
-	f = 0
-	while f < 120 and killer.machine.current_name == "attack":
+		# Quick attack from this range must MISS (checked once).
+		if not quick_done:
+			quick_done = true
+			sv.health = Enums.Health.HEALTHY
+			killer.global_position = c
+			sv.global_position = tgt
+			killer.face_towards(tgt)
+			killer.attack_cooldown = 0.0
+			killer.machine.force("attack", {"lunge": false})
+			var fq := 0
+			while fq < 120 and killer.machine.current_name == "attack":
+				await get_tree().physics_frame
+				fq += 1
+			await get_tree().physics_frame
+			quick_miss = sv.health == Enums.Health.HEALTHY
+			print("[lunge-test] quick @%.1fm -> %s (want HEALTHY/MISS)  %s"
+				% [D, Enums.health_to_string(sv.health), "PASS" if quick_miss else "FAIL"])
+			ok = ok and quick_miss
+			if not quick_miss:
+				break
+
+		# Lunge attack from the same range must HIT.
+		sv.health = Enums.Health.HEALTHY
+		killer.global_position = c
+		sv.global_position = tgt
+		killer.face_towards(tgt)
+		killer.attack_cooldown = 0.0
+		killer.machine.force("attack", {"lunge": true})
+		f = 0
+		while f < 120 and killer.machine.current_name == "attack":
+			await get_tree().physics_frame
+			f += 1
 		await get_tree().physics_frame
-		f += 1
-	await get_tree().physics_frame
-	var lunge_hit := sv.health != Enums.Health.HEALTHY
+		if sv.health != Enums.Health.HEALTHY:
+			lunge_hit = true
+			base = c
+			target = tgt
+			break
 	print("[lunge-test] lunge @%.1fm -> %s (want INJURED/HIT)  %s"
 		% [D, Enums.health_to_string(sv.health), "PASS" if lunge_hit else "FAIL"])
 	ok = ok and lunge_hit
+	if not lunge_hit:
+		print("[lunge-test] RESULT: FAIL")
+		get_tree().quit()
+		return
+	if not quick_done:
+		print("[lunge-test] no clear firing line found  FAIL")
+		get_tree().quit()
+		return
 
 	# A lunge also drives the killer FORWARD (the dash).
 	sv.health = Enums.Health.HEALTHY

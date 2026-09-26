@@ -175,6 +175,10 @@ func _read_input() -> void:
 		_on_action_pressed()
 	if Input.is_action_just_released("interact"):
 		_on_action_released()
+	# The calibration tap has its own key on purpose: [Interact] is held down while
+	# repairing, so a skill check sharing that key could never see a fresh press.
+	if Input.is_action_just_pressed("skill_check"):
+		_on_skill_check_pressed()
 	if Input.is_action_just_pressed("use_item"):
 		use_item()
 
@@ -202,11 +206,6 @@ func _begin_vault(target: Node, end_pos: Vector2, duration: float) -> void:
 
 
 func _on_action_pressed() -> void:
-	# Skill check has priority over everything else.
-	if skill.active:
-		var grade := skill.press()
-		_resolve_skill_check(grade)
-		return
 	if machine.current_name == "locker":
 		# Pressing interact while hidden climbs back out of the locker. Without
 		# this branch a survivor could enter a locker but never leave it.
@@ -220,6 +219,15 @@ func _on_action_pressed() -> void:
 func _on_action_released() -> void:
 	if machine.current_name == "interact":
 		cancel_interaction()
+
+
+## Resolve the calibration (skill check) on its dedicated key. Deliberately not
+## part of _on_action_pressed(): the interact key is held down for the whole
+## repair, so it can never deliver the extra press a skill check needs.
+func _on_skill_check_pressed() -> void:
+	if skill.active:
+		var grade := skill.press()
+		_resolve_skill_check(grade)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -544,7 +552,7 @@ func hook_on(hook: Hook, killer: Node) -> void:
 ## a hooked bot immortal and meant the sacrifice loop could never complete.
 func hook_struggle_input(delta: float) -> float:
 	if not is_ai:
-		return delta * GameConfig.S_STRUGGLE_INPUT if Input.is_action_pressed("interact") else 0.0
+		return delta * GameConfig.S_STRUGGLE_INPUT if Input.is_action_pressed("skill_check") else 0.0
 	if randf() < GameConfig.AI_STRUGGLE_FUMBLE_CHANCE * delta:
 		return -GameConfig.AI_STRUGGLE_FUMBLE_LOSS
 	return 0.0
@@ -650,7 +658,7 @@ func tick_carried(delta: float) -> void:
 	facing = Enums.Facing.RIGHT
 	if is_ai:
 		wiggle += delta * 0.055 * clampf(GameConfig.bot_difficulty, 0.5, 1.4)
-	elif Input.is_action_pressed("interact"):
+	elif Input.is_action_pressed("skill_check"):
 		wiggle += delta * 0.11
 	EventBus.survivor_interact_progress.emit(survivor_id, Enums.InteractionKind.GRAB_CARRY,
 			clampf(wiggle, 0.0, 1.0))

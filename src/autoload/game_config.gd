@@ -182,7 +182,9 @@ const WRAITH_UNCLOAK_HASTE_MULT := 1.5    ## 150% move speed on materialising
 const WRAITH_UNCLOAK_HASTE_TIME := 1.0    ## seconds the uncloak haste lasts
 const WRAITH_BELL_CLOAK_TIME := 2.5       ## s ringing to ENTER cloak
 const WRAITH_BELL_UNCLOAK_TIME := 3.0     ## s ringing to EXIT cloak
-const WRAITH_BELL_SLOW := 0.35            ## movement multiplier while ringing the bell
+const WRAITH_BELL_SLOW := 0.35            ## (legacy) movement multiplier while ringing the bell
+const WRAITH_BELL_SPEED := 1.0            ## m/s while ringing: slowed to a crawl, NOT frozen in place,
+                                          ## and releasing the power key aborts the ring.
 
 # ---------------------------------------------------------------------------
 # Scoring (bloodpoints)

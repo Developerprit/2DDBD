@@ -516,7 +516,7 @@ func _sync_prompt() -> void:
 	# press. The dial already shows the band, this adds the missing key hint.
 	if sv.skill.active:
 		prompt_box.visible = true
-		prompt_label.text = "%s  %s" % [Locale.t("act.calibrate"), Locale.t("hint.press")]
+		prompt_label.text = "%s  %s" % [Locale.t("act.calibrate"), Locale.t("hint.skill_check")]
 		prompt_bar.visible = false
 		return
 	var text := ""

@@ -58,7 +58,9 @@ func landing_point(from_pos: Vector2) -> Vector2:
 	var side := signf((from_pos - global_position).dot(normal))
 	if is_zero_approx(side):
 		side = 1.0
-	var raw := global_position - normal * side * GameConfig.TILE * 2.6
+	# 1.5 tiles past the window centre: far enough to clear the 1-tile wall, close
+	# enough that a vault reads as "step through" instead of "teleport".
+	var raw := global_position - normal * side * GameConfig.TILE * 1.5
 	var mc := MatchController.instance
 	if mc != null:
 		var cell := mc.nearest_open_cell(Utils.tile_of(raw))

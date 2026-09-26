@@ -115,9 +115,10 @@ const STRINGS := {
 	"act.calibrate": {"en": "CALIBRATE", "zh": "校准"},
 	"act.use_item": {"en": "Use Item", "zh": "使用道具"},
 	"hint.hold": {"en": "Hold", "zh": "长按"},
-	"hint.press": {"en": "Press [Interact]", "zh": "按 [互动]"},
-	"hint.mash": {"en": "Mash [Interact]", "zh": "连打 [互动]"},
-	"hint.exit_locker": {"en": "Press [Interact] to leave", "zh": "按 [互动] 离开柜子"},
+	"hint.press": {"en": "Hold [E]", "zh": "长按 [E]"},
+	"hint.mash": {"en": "Mash [Space]", "zh": "连打 [空格]"},
+	"hint.skill_check": {"en": "Press [Space]", "zh": "按 [空格]"},
+	"hint.exit_locker": {"en": "Press [E] to leave", "zh": "按 [E] 离开柜子"},
 	"hint.no_target": {"en": "Nothing to interact with", "zh": "附近没有可交互的东西"},
 
 	# --- states / feedback ---------------------------------------------
@@ -239,6 +240,7 @@ const STRINGS := {
 	"power.bell.cloaked": {"en": "Cloaked", "zh": "隐身"},
 	"power.bell.uncloaked": {"en": "Uncloaked", "zh": "显形"},
 	"power.bell.ringing": {"en": "Ringing…", "zh": "敲钟中…"},
+	"power.bell.cancelled": {"en": "Bell released", "zh": "已松手"},
 }
 
 

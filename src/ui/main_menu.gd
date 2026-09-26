@@ -947,7 +947,14 @@ func _build_tutorial_page() -> void:
 	var v := _panel(Locale.t("tut.title"))
 	var r := RichTextLabel.new()
 	r.bbcode_enabled = true
-	r.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# A RichTextLabel reports a minimum height of ZERO by default, so a page whose
+	# only real child is the text collapsed down to just its heading and read as
+	# "no content at all". fit_content makes the label claim its full text height
+	# and the page finally renders (the ScrollContainer in _panel handles overflow).
+	r.fit_content = true
+	r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	r.custom_minimum_size = Vector2(0, 300)
+	r.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_child(r)
 	r.text = _tutorial_text()
 
@@ -957,38 +964,48 @@ func _tutorial_text() -> String:
 	var dim := "[color=#9aa1ab]"
 	var end := "[/color]"
 	if Locale.current == "zh":
-		return "%s%s%s\n WASD 移动 · Shift 行走 · Ctrl 蹲伏 · 空格 交互/检定 · 鼠标左键 攻击 · 鼠标右键 力量\n\n" % [gold, Locale.t("tut.survivor"), end] + \
-			dim + "目标：修复 5 台发电机 → 拉下出口大门开关 → 逃出去。\n" + \
-			"别人被挂钩时靠近钩子长按空格救人；你自己被挂钩时按空格搏 4% 的自救概率。\n" + \
-			"受伤后可用医疗包（F）自救，或找队友治疗。\n" + \
-			"修机时会出现检定圈，指针扫过金色区域按空格 = 完美，灰色区域 = 不错，错过 = 发电机爆炸。\n" + \
-			"被夹住时按空格挣脱（16% 概率）；木板可以放倒阻挡杀手；窗户是逃跑的好伙伴。\n" + \
-			"只剩你一个人时地窖会开启，跳进去立刻逃脱。" + end + "\n\n" + \
-			gold + Locale.t("tut.killer") + end + "\n" + \
-			dim + "目标：在逃生者逃出去之前击倒他们，挂上钩子献祭。\n" + \
-			"左键挥刀（有后摇），右键放置/回收捕兽夹。\n" + \
-			"靠近倒地的逃生者按空格抱起，扛着时再按空格挂钩。\n" + \
-			"追逐同一个逃生者 15/25/35 秒会获得杀戮欲望加速（被板砸或被拉开距离会重置）。\n" + \
-			"木板挡住了路就站着按空格踩碎它（2.6 秒）。\n" + \
-			"窗口杀手翻越更慢（1.5 秒），利用这一点绕圈是逃生者的核心技巧。" + end + "\n\n" + \
-			gold + "键盘总览" + end + "\n" + \
-			dim + "Tab 打开小地图 · Esc 暂停" + end
-	return "%s%s%s\n WASD move · Shift walk · Ctrl crouch · Space interact / skill check\n" % [gold, Locale.t("tut.survivor"), end] + \
-			"Left click attack · Right click power (killer)\n\n" + \
-			dim + "OBJECTIVE: repair 5 generators, pull an exit gate lever, get out.\n" + \
-			"Unhook teammates by holding Space at a hook. On a hook yourself, Space is a 4% escape gamble.\n" + \
-			"Heal with a med-kit (F) or let a teammate heal you.\n" + \
-			"Skill checks: press Space inside the gold band for a perfect, the grey band for a good, and missing makes the generator explode.\n" + \
-			"Step in a bear trap and Space frees you (16%). Drop pallets to block the killer. Windows are your best friend.\n" + \
-			"When you are the last one standing, the hatch opens and is an instant escape." + end + "\n\n" + \
-			gold + Locale.t("tut.killer") + end + "\n" + \
-			dim + "OBJECTIVE: down survivors and sacrifice them before they escape.\n" + \
-			"Left click swings (long recovery). Right click places or reclaims a bear trap.\n" + \
-			"Standing over a downed survivor, Space picks them up; Space again while carrying hooks them.\n" + \
-			"Chasing the same survivor for 15/25/35 s grants Bloodlust speed tiers.\n" + \
-			"A dropped pallet blocks you: stand still and hold Space to break it (2.6 s).\n" + \
-			"You vault windows slowly (1.5 s), which is exactly why survivors loop them." + end + "\n\n" + \
-			gold + "KEYS" + end + "\n" + dim + "Tab minimap · Esc pause" + end
+		return "\n".join(PackedStringArray([
+			"%s%s%s" % [gold, Locale.t("tut.survivor"), end],
+			dim + "目标：修复 5 台发电机 → 拉下出口大门开关 → 逃出去。",
+			"长按 E = 交互（修机 / 治疗 / 救人 / 抱人 / 放板）。",
+			"空格 = 校准：修机时出现的检定圈，指针扫过金色区=完美、灰色区=不错，落空=发电机爆炸。",
+			"空格 = 被挂钩时挣扎、被扛起时扭动（连打）。",
+			"F = 使用道具（医疗包可自救）；受伤后也可找队友治疗。",
+			"被夹住时按 E 挣脱（16%）；木板放倒可阻挡杀手；窗户是逃跑的好伙伴。",
+			"只剩你一人时地窖开启，跳进去立刻逃脱。" + end,
+			"",
+			gold + Locale.t("tut.killer") + end,
+			dim + "目标：在逃生者逃出去之前击倒他们，挂上钩子献祭。",
+			"左键 = 挥刀（有后摇；按住可突刺，射程更远）。右键 = 力量。",
+			"靠近倒地的逃生者按 E 抱起，扛着时再按 E 挂钩。",
+			"木板挡路时站着长按 E 踩碎（2.6 秒）；窗户杀手翻越更慢（1.5 秒），绕窗是逃生者的核心技巧。",
+			"幽灵 · 哀嚎之铃：按住右键敲钟，2.5 秒隐身 / 3 秒显形。敲钟时移速降到 1.0 但可继续走动，松开右键即可中断。",
+			"隐身时没有心跳与红痕，20m 外对逃生者完全不可见（你自己始终看得见自己）。" + end,
+			"",
+			gold + "键盘总览" + end,
+			dim + "WASD 移动 · Shift 行走 · Ctrl 蹲伏 · E 交互(长按) · 空格 校准/挣扎 · 左键 攻击 · 右键 力量 · F 道具 · Tab 小地图 · Esc 暂停" + end,
+		]))
+	return "\n".join(PackedStringArray([
+		"%s%s%s" % [gold, Locale.t("tut.survivor"), end],
+		dim + "OBJECTIVE: repair 5 generators, pull an exit gate lever, get out.",
+		"HOLD E to interact (repair / heal / unhook / pick up / drop a pallet).",
+		"SPACE is the skill check: tap inside the gold band for a perfect, the grey band for a good - missing blows the generator.",
+		"SPACE also mashes a struggle (on a hook) and a wiggle (while carried).",
+		"F uses your item (a med-kit heals you); a teammate can also heal you.",
+		"Step in a bear trap and press E to free yourself (16%). Drop pallets to block, loop windows to survive.",
+		"When you are the last one standing the hatch opens - jump in for an instant escape." + end,
+		"",
+		gold + Locale.t("tut.killer") + end,
+		dim + "OBJECTIVE: down survivors and sacrifice them before they escape.",
+		"LEFT CLICK swings (long recovery); HOLD it to lunge for extra reach. RIGHT CLICK is your power.",
+		"Standing over a downed survivor, press E to pick them up; press E again while carrying to hook them.",
+		"HOLD E on a dropped pallet to break it. You vault windows slowly (1.5 s) - that is why survivors loop them.",
+		"WRAITH - Wailing Bell: HOLD right click to ring, 2.5 s to cloak / 3 s to uncloak. While ringing you crawl at 1.0 m/s but keep walking freely, and letting go of right click cancels the ring.",
+		"Cloaked you make no heartbeat and no red stain, and survivors cannot see you past 20 m (you always see yourself)." + end,
+		"",
+		gold + "KEYS" + end,
+		dim + "WASD move · Shift walk · Ctrl crouch · E interact (hold) · Space skill check / struggle · LMB attack · RMB power · F item · Tab minimap · Esc pause" + end,
+	]))
 
 
 # ---------------------------------------------------------------------------
@@ -1066,7 +1083,12 @@ func _build_credits_page() -> void:
 	var v := _panel(Locale.t("menu.credits"))
 	var r := RichTextLabel.new()
 	r.bbcode_enabled = true
-	r.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Same fix as the tutorial page: without fit_content a text-only page has a
+	# minimum height of 0 and renders as an empty panel.
+	r.fit_content = true
+	r.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	r.custom_minimum_size = Vector2(0, 300)
+	r.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_child(r)
 	if Locale.current == "zh":
 		r.text = "[color=#d8a848]2DDBD[/color]\n\n" + \
