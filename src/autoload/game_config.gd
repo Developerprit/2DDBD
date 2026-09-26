@@ -196,6 +196,9 @@ const WRAITH_BELL_UNCLOAK_TIME := 2.5     ## s ringing to EXIT cloak
 const WRAITH_BELL_SLOW := 0.35            ## (legacy) movement multiplier while ringing the bell
 const WRAITH_BELL_SPEED := 1.0            ## m/s while ringing: slowed to a crawl, NOT frozen in place,
                                           ## and releasing the power key aborts the ring.
+## The cloak is not a downside for interacting: a cloaked Wraith can still vault,
+## break, kick and hook, and does all of it 4% faster.
+const WRAITH_CLOAK_INTERACT_SPEED := 1.04
 
 ## Killer Instinct -- deliberately narrow. Exactly three things may trigger it:
 ##   1. a survivor blowing a calibration (loud, and it gives them away),

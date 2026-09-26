@@ -590,8 +590,6 @@ func _sync_killer_prompt() -> void:
 		show_bar = true
 	elif k.is_carrying:
 		text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.hook")]
-	elif k.cloaked:
-		text = Locale.t("power.bell.need_uncloak")
 	elif k.find_pickup_probe() != null:
 		text = "%s: %s" % [Locale.t("hint.press"), Locale.t("act.pickup")]
 	elif k.nearest_kickable_generator() != null:

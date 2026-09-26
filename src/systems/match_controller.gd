@@ -1347,6 +1347,38 @@ func _run_wraith_test() -> void:
 	print("[wraith-test] speed after haste=%.1f want=%.1f  %s" % [after_speed, GameConfig.m(GameConfig.K_RUN), "PASS" if decay_ok else "FAIL"])
 	ok = ok and decay_ok
 
+	# --- 4. Cloak interaction bonus: a cloaked Wraith may interact at all, and does
+	# it 4% faster. Both halves matter -- the old code refused to interact at all
+	# while cloaked and made you ring the bell first.
+	killer.cloaked = true
+	var m_cloak := killer.interaction_speed_mult()
+	var t_cloak := GameConfig.K_WINDOW_VAULT_TIME / m_cloak
+	killer.cloaked = false
+	var m_open := killer.interaction_speed_mult()
+	var t_open := GameConfig.K_WINDOW_VAULT_TIME / m_open
+	var mult_ok := absf(m_cloak - GameConfig.WRAITH_CLOAK_INTERACT_SPEED) < 0.001 \
+			and absf(m_open - 1.0) < 0.001
+	var faster := t_cloak < t_open
+	print("[wraith-test] cloak interact mult=%.2f (open %.2f) vault %.2fs -> %.2fs  %s"
+			% [m_cloak, m_open, t_open, t_cloak,
+			"PASS" if (mult_ok and faster) else "FAIL"])
+	ok = ok and mult_ok and faster
+
+	# ...and a cloaked Wraith can actually COMPLETE an interaction, not just be
+	# awarded a multiplier. Park a body next to him and pick it up while cloaked.
+	var body: Survivor = survivors[0] if not survivors.is_empty() else null
+	if body != null:
+		killer.cloaked = true
+		body.set_health(Enums.Health.DOWNED)
+		body.global_position = killer.global_position + Vector2(GameConfig.TILE, 0)
+		var picked := killer.try_pickup()
+		var carry_ok := picked and killer.is_carrying
+		print("[wraith-test] cloaked pickup=%s carrying=%s  %s"
+				% [str(picked), str(killer.is_carrying), "PASS" if carry_ok else "FAIL"])
+		ok = ok and carry_ok
+		killer.drop_carried()
+		killer.cloaked = false
+
 	print("[wraith-test] RESULT: %s" % ("PASS" if ok else "FAIL"))
 	get_tree().quit()
 

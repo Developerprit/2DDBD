@@ -242,7 +242,6 @@ const STRINGS := {
 	"power.bell.uncloaked": {"en": "Uncloaked", "zh": "显形"},
 	"power.bell.ringing": {"en": "Ringing…", "zh": "敲钟中…"},
 	"power.bell.cancelled": {"en": "Bell released", "zh": "已松手"},
-	"power.bell.need_uncloak": {"en": "Ring the bell to materialise first", "zh": "先敲钟显形再交互"},
 }
 
 

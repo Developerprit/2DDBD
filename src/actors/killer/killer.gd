@@ -229,13 +229,10 @@ func _interact_pressed() -> void:
 	if is_carrying:
 		hook_carried()
 		return
-	# You cannot pick up, vault, break or kick while cloaked -- but the interact key
-	# no longer starts the bell to get you out of it. Ringing the Wailing Bell is
-	# the POWER key's job; letting interact start it too meant one press could
-	# silently become a channel and the interaction the player asked for vanished.
-	if cloaked:
-		EventBus.toast.emit(Locale.t("power.bell.need_uncloak"), Color(0.6, 0.8, 0.9))
-		return
+	# A cloaked Wraith CAN interact -- the original allows it and does it 4% faster
+	# (see interaction_speed_mult). What the interact key must never do is start the
+	# bell: ringing is the power key's job, and letting interact start it too meant
+	# one press could silently become a channel and swallow the interaction.
 	if machine.current_name != "move":
 		return
 	# Standing over a downed survivor picks them up; otherwise vault a window
@@ -257,15 +254,6 @@ func _interact_pressed() -> void:
 	var g := nearest_kickable_generator()
 	if g != null and machine.has_state("damage_gen"):
 		machine.force("damage_gen", {"target": g})
-
-
-## Start the uncloak channel if the killer is cloaked and free to act. Returns
-## true when it did, so the caller can abort the interaction it was about to do.
-func _try_uncloak_for_action() -> bool:
-	if cloaked and machine.current_name == "move" and not _bell_active:
-		_start_bell(false)
-		return true
-	return false
 
 
 func nearest_kickable_generator() -> Generator:
@@ -621,14 +609,10 @@ func apply_blind(seconds: float) -> void:
 func try_pickup() -> bool:
 	if is_carrying:
 		return false
-	# A cloaked Wraith cannot grab a body -- ring the bell first.
-	if _try_uncloak_for_action():
-		return false
 	var target := _find_pickup_target()
 	if target == null:
 		return false
-	# (If we reached here we are already uncloaked -- _try_uncloak_for_action()
-	# above aborted the grab while a Wraith was still cloaked.)
+	# Deliberately no uncloak gate: a cloaked Wraith may pick a body up.
 	start_carry(target)
 	return true
 
@@ -950,11 +934,26 @@ func nearest_breakable_pallet() -> Pallet:
 	return best
 
 
+## Multiplier applied to EVERY interaction this killer performs -- window/pallet
+## vault, pallet break, generator kick, hooking. A cloaked Wraith may interact at
+## all, and does it 4% faster, so cloaking is never a downside for vaulting or
+## breaking.
+func interaction_speed_mult() -> float:
+	if char_id == "wraith" and cloaked:
+		return GameConfig.WRAITH_CLOAK_INTERACT_SPEED
+	return 1.0
+
+
+## Effective duration of a killer interaction, with the cloak bonus folded in.
+func scaled_interaction_time(base: float) -> float:
+	return base / maxf(0.01, interaction_speed_mult())
+
+
 func pallet_break_time() -> float:
 	var t := GameConfig.K_PALLET_BREAK_TIME
 	if perk_mods.has("pallet_break_mult"):
 		t /= float(perk_mods["pallet_break_mult"])
-	return t
+	return scaled_interaction_time(t)
 
 
 func _camera() -> Camera2D:
@@ -1179,8 +1178,11 @@ class HookingState:
 	func update(delta: float) -> void:
 		var k := actor as Killer
 		_timer += delta
-		if _timer < 1.1 or _done:
-			if _timer > 2.4:
+		# Hooking is an interaction too, so the killer's interaction-speed bonus
+		# shortens it (a cloaked Wraith hooks 4% faster).
+		var mult := maxf(0.01, k.interaction_speed_mult())
+		if _timer < 1.1 / mult or _done:
+			if _timer > 2.4 / mult:
 				machine.change("move")
 			return
 		_done = true

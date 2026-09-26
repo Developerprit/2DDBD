@@ -88,8 +88,13 @@ func interact_time(_actor: Node) -> float:
 # ---------------------------------------------------------------------------
 # Damaging (the killer's side of the interaction)
 # ---------------------------------------------------------------------------
-func kick_time(_actor: Node) -> float:
-	return GameConfig.GEN_DAMAGE_TIME
+func kick_time(actor: Node) -> float:
+	# Shortened by the killer's interaction-speed bonus (a cloaked Wraith is 4%
+	# faster, so kicking a generator while invisible is slightly quicker).
+	var mult := 1.0
+	if actor != null and actor.has_method("interaction_speed_mult"):
+		mult = float(actor.interaction_speed_mult())
+	return GameConfig.GEN_DAMAGE_TIME / maxf(0.01, mult)
 
 
 ## A killer may damage a generator that has progress on it, has not been

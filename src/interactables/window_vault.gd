@@ -38,7 +38,12 @@ func interact_time(_actor: Node) -> float:
 
 func vault_time(actor: Node) -> float:
 	if actor.is_in_group("killer"):
-		return GameConfig.K_WINDOW_VAULT_TIME
+		# Killers get their own (slow) vault, shortened by whatever interaction-speed
+		# bonus they carry -- a cloaked Wraith vaults 4% faster.
+		var mult := 1.0
+		if actor.has_method("interaction_speed_mult"):
+			mult = float(actor.interaction_speed_mult())
+		return GameConfig.K_WINDOW_VAULT_TIME / maxf(0.01, mult)
 	return GameConfig.S_VAULT_WINDOW_TIME
 
 
